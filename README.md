@@ -1,12 +1,14 @@
-# GoSimple n8n Workflows
+# Retired n8n Workflow Archive
 
-This repo is the **single source of truth** for all n8n workflows running on our GoSimple n8n cloud instance.
+**Status: retired.** The GoSimple n8n service no longer exists. Its functionality has been implemented in the relevant application repositories.
 
-**Live instance:** https://gosimple.app.n8n.cloud
+This repository retains historical workflow exports for reference. It is not a deployment target or the source of truth for current automation. Make operational changes in the application repository that now owns the functionality.
+
+Do not use the archived pull or push scripts to provision, import, or reactivate workflows. References to active workflows below describe their status when exported, not a running service.
 
 ## Businesses
 
-We manage automation workflows for two brands under the GoSimple.ie family:
+The archived workflows supported two brands under the GoSimple.ie family:
 
 - **GlassBag.ie** — Doorstep glass bottle collection service (Shopify/WooCommerce/ReCharge)
 - **JunkIreland.ie** — Professional junk removal service (Shopify)
@@ -23,41 +25,9 @@ workflows/
     └── push.sh        # Push a local workflow to n8n
 ```
 
-## Setup
+## Historical Workflows (13)
 
-1. Clone this repo
-2. Create `.env` with your n8n API key:
-   ```
-   N8N_API_KEY=your-api-key-here
-   ```
-
-## Pulling Workflows
-
-Pull all active workflows from the live n8n instance:
-
-```bash
-./workflows/scripts/pull-all.sh
-```
-
-This fetches every active workflow, strips metadata, adds a `_meta` block with the n8n ID and pull timestamp, and saves each to the correct subfolder.
-
-## Pushing Workflows
-
-Push a local workflow back to n8n:
-
-```bash
-./workflows/scripts/push.sh workflows/glassbag/fulfil-shopify-orders.json
-```
-
-The script:
-1. Reads `_meta.n8n_id` from the file to identify the target workflow
-2. Fetches the current live version (safety check)
-3. PUTs the local version
-4. Verifies the response (ID match, node count)
-
-## Workflows (13)
-
-| n8n ID | Name | Status | Category |
+| n8n ID | Name | Status at export | Category |
 |--------|------|--------|----------|
 | LyNkq3x02qKMwuKA | Blog Post Automation v3 (Multi-Store) | Active | shared |
 | vcPlqvIsK0kYr5eT | Blog Topic Generation v3 (Multi-Store) | Active | shared |
@@ -73,12 +43,6 @@ The script:
 | sOdT7YUhaEYdKe3w | WooCommerce/ReCharge Max Retries Webhook | Active | glassbag |
 | uwUqy4eJkrPDiXOO | Create Collection List | Active | glassbag |
 
-## Workflow Lifecycle
-
-1. **Edit locally** — Make all changes to the JSON files in this repo
-2. **Push to n8n** — Use `push.sh` to deploy changes to the live instance
-3. **Never edit live** — If someone edits in the n8n UI, pull the changes back here first
-
 ## Related Repos
 
-- **gbr-api** (`/mnt/c/dev/gbr-api`) — GlassBag/JunkIreland Vercel API. Contains endpoints called by many of these workflows. Previously stored workflow JSON — this repo is now canonical.
+- **gbr-api** — GlassBag/JunkIreland Vercel API. This archive records workflows that previously called its endpoints. Current implementations belong in the relevant application repositories.
