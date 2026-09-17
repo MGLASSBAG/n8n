@@ -1,0 +1,211 @@
+{
+  "_meta": {
+    "n8n_id": "ASFqDyfYPh2FxL5Q",
+    "pulled_at": "2026-02-23T02:24:46Z",
+    "description": "NEW: Glassbag.ie: Online Chat Support Agent"
+  },
+  "name": "NEW: Glassbag.ie: Online Chat Support Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "emily-ticket",
+        "options": {
+          "rawBody": false
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "16fd5076-5101-45b6-b8f9-b1a8b4d10d55",
+      "name": "Webhook",
+      "webhookId": "b8ae1a2f-fff6-4118-9456-c907dca44bb6"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA",
+          "mode": "list",
+          "cachedResultName": "GlassBag Support System",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2012516939,
+          "mode": "list",
+          "cachedResultName": "Call & Chat Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit#gid=2012516939"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{$json.body.timestamp}}",
+            "customer_name": "={{ $json.body.customer_name }}",
+            "session_id": "={{$json.body.session_id}}",
+            "channel": "={{$json.body.channel}}",
+            "email": "={{ $json.body.email }}",
+            "phone": "={{$json.body.phone}}",
+            "eircode": "={{ $json.body.eircode }}",
+            "summary": "={{ $json.body.summary }}",
+            "topic": "={{ $json.body.topic }}",
+            "next_steps": "={{ $json.body.next_steps }}",
+            "transcript": "={{ $json.body.transcript }}",
+            "source": "={{ $json.body.source }}"
+          },
+          "matchingColumns": [
+            "timestamp"
+          ],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "channel",
+              "displayName": "channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "eircode",
+              "displayName": "eircode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "topic",
+              "displayName": "topic",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "next_steps",
+              "displayName": "next_steps",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "transcript",
+              "displayName": "transcript",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        512,
+        0
+      ],
+      "id": "d72e494b-7183-4939-96f1-e4efd433537f",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

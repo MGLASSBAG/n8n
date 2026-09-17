@@ -1,72 +1,84 @@
-![Banner image](https://user-images.githubusercontent.com/10284570/173569848-c624317f-42b1-45a6-ab09-f0ea3c247648.png)
+# GoSimple n8n Workflows
 
-# n8n - Secure Workflow Automation for Technical Teams
+This repo is the **single source of truth** for all n8n workflows running on our GoSimple n8n cloud instance.
 
-n8n is a workflow automation platform that gives technical teams the flexibility of code with the speed of no-code. With 400+ integrations, native AI capabilities, and a fair-code license, n8n lets you build powerful automations while maintaining full control over your data and deployments.
+**Live instance:** https://gosimple.app.n8n.cloud
 
-![n8n.io - Screenshot](https://raw.githubusercontent.com/n8n-io/n8n/master/assets/n8n-screenshot-readme.png)
+## Businesses
 
-## Key Capabilities
+We manage automation workflows for two brands under the GoSimple.ie family:
 
-- **Code When You Need It**: Write JavaScript/Python, add npm packages, or use the visual interface
-- **AI-Native Platform**: Build AI agent workflows based on LangChain with your own data and models
-- **Full Control**: Self-host with our fair-code license or use our [cloud offering](https://app.n8n.cloud/login)
-- **Enterprise-Ready**: Advanced permissions, SSO, and air-gapped deployments
-- **Active Community**: 400+ integrations and 900+ ready-to-use [templates](https://n8n.io/workflows)
+- **GlassBag.ie** — Doorstep glass bottle collection service (Shopify/WooCommerce/ReCharge)
+- **JunkIreland.ie** — Professional junk removal service (Shopify)
 
-## Quick Start
-
-Try n8n instantly with [npx](https://docs.n8n.io/hosting/installation/npm/) (requires [Node.js](https://nodejs.org/en/)):
+## Folder Structure
 
 ```
-npx n8n
+workflows/
+├── glassbag/          # GlassBag.ie specific workflows
+├── junkireland/       # JunkIreland.ie specific workflows
+├── shared/            # Multi-store or shared workflows
+└── scripts/
+    ├── pull-all.sh    # Pull all active workflows from n8n
+    └── push.sh        # Push a local workflow to n8n
 ```
 
-Or deploy with [Docker](https://docs.n8n.io/hosting/installation/docker/):
+## Setup
 
+1. Clone this repo
+2. Create `.env` with your n8n API key:
+   ```
+   N8N_API_KEY=your-api-key-here
+   ```
+
+## Pulling Workflows
+
+Pull all active workflows from the live n8n instance:
+
+```bash
+./workflows/scripts/pull-all.sh
 ```
-docker volume create n8n_data
-docker run -it --rm --name n8n -p 5678:5678 -v n8n_data:/home/node/.n8n docker.n8n.io/n8nio/n8n
+
+This fetches every active workflow, strips metadata, adds a `_meta` block with the n8n ID and pull timestamp, and saves each to the correct subfolder.
+
+## Pushing Workflows
+
+Push a local workflow back to n8n:
+
+```bash
+./workflows/scripts/push.sh workflows/glassbag/fulfil-shopify-orders.json
 ```
 
-Access the editor at http://localhost:5678
+The script:
+1. Reads `_meta.n8n_id` from the file to identify the target workflow
+2. Fetches the current live version (safety check)
+3. PUTs the local version
+4. Verifies the response (ID match, node count)
 
-## Resources
+## Workflows (13)
 
-- 📚 [Documentation](https://docs.n8n.io)
-- 🔧 [400+ Integrations](https://n8n.io/integrations)
-- 💡 [Example Workflows](https://n8n.io/workflows)
-- 🤖 [AI & LangChain Guide](https://docs.n8n.io/langchain/)
-- 👥 [Community Forum](https://community.n8n.io)
-- 📖 [Community Tutorials](https://community.n8n.io/c/tutorials/28)
+| n8n ID | Name | Status | Category |
+|--------|------|--------|----------|
+| LyNkq3x02qKMwuKA | Blog Post Automation v3 (Multi-Store) | Active | shared |
+| vcPlqvIsK0kYr5eT | Blog Topic Generation v3 (Multi-Store) | Active | shared |
+| 0zznUUxrSocIzqQm | Once-Off & Inactive Subscriber Re-engagement | Active | glassbag |
+| 5N4mMmmm4iTOUpH3 | Pending Action & Alias Once-Off Scheduler | Active | glassbag |
+| ASFqDyfYPh2FxL5Q | Online Chat Support Agent | Active | glassbag |
+| Ty7TNdNQjjLjDIHg | Update Once Off Sheet via Emily Chat | Active | glassbag |
+| UerkpzQcPageyMYD | Multi-Thread Context Support Agent | Inactive | glassbag |
+| XI1fqRQ4kuEEAZWy | Fulfil Shopify Orders / 7am | Active | glassbag |
+| cZ98HFjao5z48y0w | Support Summary Digest | Active | glassbag |
+| i1tOtrTnPJc6pVnu | Sets Once Off Tag / 6am | Active | glassbag |
+| ifyN0zAPSvYeFgk3 | Send Approved Drafts | Active | glassbag |
+| sOdT7YUhaEYdKe3w | WooCommerce/ReCharge Max Retries Webhook | Active | glassbag |
+| uwUqy4eJkrPDiXOO | Create Collection List | Active | glassbag |
 
-## Support
+## Workflow Lifecycle
 
-Need help? Our community forum is the place to get support and connect with other users:
-[community.n8n.io](https://community.n8n.io)
+1. **Edit locally** — Make all changes to the JSON files in this repo
+2. **Push to n8n** — Use `push.sh` to deploy changes to the live instance
+3. **Never edit live** — If someone edits in the n8n UI, pull the changes back here first
 
-## License
+## Related Repos
 
-n8n is [fair-code](https://faircode.io) distributed under the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) and [n8n Enterprise License](https://github.com/n8n-io/n8n/blob/master/LICENSE_EE.md).
-
-- **Source Available**: Always visible source code
-- **Self-Hostable**: Deploy anywhere
-- **Extensible**: Add your own nodes and functionality
-
-[Enterprise licenses](mailto:license@n8n.io) available for additional features and support.
-
-Additional information about the license model can be found in the [docs](https://docs.n8n.io/reference/license/).
-
-## Contributing
-
-Found a bug 🐛 or have a feature idea ✨? Check our [Contributing Guide](https://github.com/n8n-io/n8n/blob/master/CONTRIBUTING.md) to get started.
-
-## Join the Team
-
-Want to shape the future of automation? Check out our [job posts](https://n8n.io/careers) and join our team!
-
-## What does n8n mean?
-
-**Short answer:** It means "nodemation" and is pronounced as n-eight-n.
-
-**Long answer:** "I get that question quite often (more often than I expected) so I decided it is probably best to answer it here. While looking for a good name for the project with a free domain I realized very quickly that all the good ones I could think of were already taken. So, in the end, I chose nodemation. 'node-' in the sense that it uses a Node-View and that it uses Node.js and '-mation' for 'automation' which is what the project is supposed to help with. However, I did not like how long the name was and I could not imagine writing something that long every time in the CLI. That is when I then ended up on 'n8n'." - **Jan Oberhauser, Founder and CEO, n8n.io**
+- **gbr-api** (`/mnt/c/dev/gbr-api`) — GlassBag/JunkIreland Vercel API. Contains endpoints called by many of these workflows. Previously stored workflow JSON — this repo is now canonical.

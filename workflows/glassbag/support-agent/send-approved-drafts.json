@@ -1,0 +1,1116 @@
+{
+  "_meta": {
+    "n8n_id": "ifyN0zAPSvYeFgk3",
+    "pulled_at": "2026-02-23T02:24:46Z",
+    "description": "NEW: GlassBag.ie - Send Approved Drafts"
+  },
+  "name": "NEW: GlassBag.ie - Send Approved Drafts",
+  "nodes": [
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA",
+          "mode": "list",
+          "cachedResultName": "GlassBag Support System",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Main Support Inbox Log ",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "draft_status",
+              "lookupValue": "=approved"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6d48d87e-16d1-48cc-bfcd-ff1cbe52b7d7",
+      "name": "Read Approved Drafts",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -2032,
+        640
+      ],
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.ai_drafted_reply && $json.thread_id }}\n",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "exists",
+                      "singleValue": true
+                    },
+                    "id": "validation-check"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -1840,
+        640
+      ],
+      "id": "8e3f56da-4496-4df8-b6ee-c44f995c67c4",
+      "name": "Validation Switch"
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $json.message_id }}",
+        "message": "={{ $json.ai_drafted_reply }}",
+        "options": {
+          "ccList": "={{ $json.email_from }}"
+        }
+      },
+      "id": "22e303cb-1f54-4deb-8bd1-19324fda2c94",
+      "name": "Send Gmail Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -1648,
+        528
+      ],
+      "webhookId": "send-approved-reply-webhook",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6lB6mgLBMfvG3wjl",
+          "name": "Gmail account: info@glassbag.ie"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the original data from the Read node (before Gmail send)\nconst originalData = $('Read Approved Drafts').first().json;\n\n// Gmail send was successful if we got here, return original data\nreturn [{\n  json: {\n    ...originalData,\n    gmail_send_success: true,\n    gmail_sent_at: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1456,
+        640
+      ],
+      "id": "a356029d-94cf-4976-bbf2-efccaa23d369",
+      "name": "Restore Data"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA",
+          "mode": "list",
+          "cachedResultName": "GlassBag Support System",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Support Inbox Log (NEW)",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "message_id": "={{ $json.message_id }}",
+            "processed": "TRUE",
+            "sent_timestamp": "={{ $now.toISO() }}",
+            "approved_at": "={{ $now.toISO() }}",
+            "draft_status": "manually_approved_sent",
+            "needs_admin": "FALSE"
+          },
+          "matchingColumns": [
+            "message_id"
+          ],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "thread_id",
+              "displayName": "thread_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "message_id",
+              "displayName": "message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email_from",
+              "displayName": "email_from",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "body_cleaned",
+              "displayName": "body_cleaned",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "thread_context",
+              "displayName": "thread_context",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "thread_full_text",
+              "displayName": "thread_full_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "needs_admin",
+              "displayName": "needs_admin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_found",
+              "displayName": "customer_found",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "isSubscriber",
+              "displayName": "isSubscriber",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_source",
+              "displayName": "customer_source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "address_1",
+              "displayName": "address_1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "address_2",
+              "displayName": "address_2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "province",
+              "displayName": "province",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "eircode",
+              "displayName": "eircode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "collection_date",
+              "displayName": "collection_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_intent",
+              "displayName": "customer_intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "subcategory",
+              "displayName": "subcategory",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tone",
+              "displayName": "tone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "urgency",
+              "displayName": "urgency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "auto_send_eligible",
+              "displayName": "auto_send_eligible",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "draft_status",
+              "displayName": "draft_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "requires_verification",
+              "displayName": "requires_verification",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "verification_reason",
+              "displayName": "verification_reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "ai_drafted_reply",
+              "displayName": "ai_drafted_reply",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "approved_at",
+              "displayName": "approved_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sent_timestamp",
+              "displayName": "sent_timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "create_task",
+              "displayName": "create_task",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "action_type",
+              "displayName": "action_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "admin_notes",
+              "displayName": "admin_notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "processed",
+              "displayName": "processed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "e2fa6ffb-4d7f-41f8-9786-54b6d5692527",
+      "name": "Update Support Log - Mark Sent",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1248,
+        640
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the original data from Read node (has all customer/classification fields)\nconst originalData = $('Read Approved Drafts').first().json;\n\n// Return original data so external action logging can use it\nreturn [{\n  json: {\n    ...originalData,\n    // Override with confirmed sent status\n    processed: true,\n    sent_timestamp: new Date().toISOString(),\n    approved_at: new Date().toISOString(),\n    draft_status: 'manually_approved_sent',\n    needs_admin: false\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1040,
+        640
+      ],
+      "id": "945c83af-9c9f-4d38-85a8-5966d6cf75af",
+      "name": "Restore Data After Update"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.create_task }}",
+                    "rightValue": "TRUE",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "requires-action-check"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "requires_action"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -848,
+        640
+      ],
+      "id": "65a54ae6-aaf2-4410-9afe-c4fbaeb6da5b",
+      "name": "Requires External Action?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $json;\n\n// Build a canonical address from whatever we have\nconst canonicalAddress =\n  r.address_full ||\n  r.address ||\n  [r.address_1, r.address_2, r.city].filter(Boolean).join(', ') ||\n  '';\n\n// Build rich notes with as much customer context as possible\nconst details = [];\n\nif (r.customer_source) details.push(`Source: ${r.customer_source}`);\nif (r.subscription_status) details.push(`Subscription: ${r.subscription_status}`);\nif (r.eircode) details.push(`Eircode: ${r.eircode}`);\nif (canonicalAddress) details.push(`Address: ${canonicalAddress}`);\nif (r.collection_date) details.push(`Next pickup: ${r.collection_date}`);\nif (r.next_collection_day) details.push(`Collection day: ${r.next_collection_day}`);\nif (r.collection_week) details.push(`Collection week: ${r.collection_week}`);\n\nif (r.category) details.push(`Category: ${r.category}`);\nif (r.subcategory) details.push(`Subcategory: ${r.subcategory}`);\nif (r.action_type) details.push(`Action type: ${r.action_type}`);\nif (r.summary) details.push(`Summary: ${r.summary}`);\nif (r.customer_intent) details.push(`Intent: ${r.customer_intent}`);\n\nif (r.requires_verification) {\n  details.push(\n    `Requires verification: ${r.requires_verification} ${\n      r.verification_reason ? `(${r.verification_reason})` : ''\n    }`.trim()\n  );\n}\n\nif (r.needs_admin) details.push(`Needs admin: ${r.needs_admin}`);\nif (r.admin_notes) details.push(`Admin notes: ${r.admin_notes}`);\n\n// Build the row exactly matching the Pending Actions sheet columns\nconst row = {\n  // Sheets column: \"created_at\"\n  // (we keep the capital-C key because your Append node reads `$json.Created_at`)\n  Created_at: r.sent_timestamp || r.timestamp || new Date().toISOString(),\n\n  // Sheets column: \"source_message_id\"\n  source_message_id: r.message_id || '',\n\n  // Sheets column: \"action_type\"\n  action_type: r.action_type || 'none',\n\n  // Sheets column: \"status\"\n  status: 'open',\n\n  // Sheets column: \"assignee\"\n  assignee: '',\n\n  // Sheets column: \"customer_name\"\n  customer_name: r.name || r.customer_name || '',\n\n  // Sheets column: \"email\"\n  email: r.email_from || r.email || '',\n\n  // Sheets column: \"phone\"\n  phone: r.phone || '',\n\n  // Sheets column: \"address\"\n  address: canonicalAddress,\n\n  // Sheets column: \"province\"\n  province: r.province || '',\n\n  // Sheets column: \"eircode\"\n  eircode: r.eircode || '',\n\n  // Sheets column: \"notes\"\n  notes: details.join(' | '),\n\n  // Sheets column: \"priority\"\n  priority: r.urgency || 'normal',\n\n  // Sheets column: \"completed_at\"\n  completed_at: '',\n};\n\nreturn [{ json: row }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        640
+      ],
+      "id": "d8ca27ad-e489-4e1f-a080-3a26c6d8edbb",
+      "name": "Build Pending Action Row"
+    },
+    {
+      "parameters": {
+        "operation": "removeLabels",
+        "messageId": "={{ $json.source_message_id }}",
+        "labelIds": [
+          "UNREAD"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -416,
+        704
+      ],
+      "id": "32ff614f-44af-4548-a4ee-d1d3a5d6645d",
+      "name": "Remove label from message2",
+      "webhookId": "73ec308d-43ca-4422-902e-8fcc2125ccd4",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6lB6mgLBMfvG3wjl",
+          "name": "Gmail account: info@glassbag.ie"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA",
+          "mode": "list",
+          "cachedResultName": "GlassBag Support System",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 22198673,
+          "mode": "list",
+          "cachedResultName": "Pending Actions Queue",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit#gid=22198673"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "created_at": "={{ $json.Created_at }}",
+            "source_message_id": "={{ $json.source_message_id }}",
+            "action_type": "={{ $json.action_type }}",
+            "status": "=pending",
+            "assignee": "=ADMIN",
+            "customer_name": "={{ $json.customer_name }}",
+            "email": "={{ $json.email }}",
+            "phone": "={{ $json.phone }}",
+            "address": "={{ $json.address }}",
+            "province": "={{ $json.province }}",
+            "eircode": "={{ $json.eircode }}",
+            "notes": "={{ $json.notes }}",
+            "priority": "={{ $json.priority }}",
+            "completed_at": "={{ $json.completed_at }}"
+          },
+          "matchingColumns": [
+            "source_message_id"
+          ],
+          "schema": [
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_message_id",
+              "displayName": "source_message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "action_type",
+              "displayName": "action_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "assignee",
+              "displayName": "assignee",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "address",
+              "displayName": "address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "province",
+              "displayName": "province",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "eircode",
+              "displayName": "eircode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "priority",
+              "displayName": "priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "alias_onceoff_created",
+              "displayName": "alias_onceoff_created",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "alias_area_code",
+              "displayName": "alias_area_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "alias_collection_date",
+              "displayName": "alias_collection_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -416,
+        496
+      ],
+      "id": "6436cdba-d054-4991-94a3-865ed5095078",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nfor (const item of $input.all()) {\n  item.json.myNewField = 1;\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -176,
+        496
+      ],
+      "id": "2dff762b-1f67-4acb-994f-be1a7df6a1d2",
+      "name": "Ensure Sheet Update"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA",
+          "mode": "list",
+          "cachedResultName": "GlassBag Support System",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Main Support Inbox Log ",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit#gid=0"
+        },
+        "event": "rowUpdate",
+        "options": {
+          "columnsToWatch": [
+            "draft_status"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        -2240,
+        560
+      ],
+      "id": "d67c43e2-a334-4c85-9b88-30101cd10148",
+      "name": "Google Sheets Trigger",
+      "credentials": {
+        "googleSheetsTriggerOAuth2Api": {
+          "id": "6eTJiXgdLDCBKhWq",
+          "name": "Google Sheets Trigger account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "thread",
+        "operation": "removeLabels",
+        "threadId": "={{ $json.thread_id }}",
+        "labelIds": [
+          "UNREAD"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -1840,
+        848
+      ],
+      "id": "a5c6e892-1847-497f-bc64-30fd34e61161",
+      "name": "Remove label from thread1",
+      "webhookId": "224f6b7a-7757-446d-9857-169730cd062f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6lB6mgLBMfvG3wjl",
+          "name": "Gmail account: info@glassbag.ie"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -2240,
+        768
+      ],
+      "id": "4dfca93d-c329-4edf-bc0c-b77692c27f2e",
+      "name": "When clicking \u2018Execute workflow\u2019"
+    },
+    {
+      "parameters": {
+        "operation": "removeLabels",
+        "messageId": "={{ $json.message_id }}",
+        "labelIds": [
+          "UNREAD"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -1840,
+        1024
+      ],
+      "id": "86ecc068-2011-482a-b050-0558e13d6683",
+      "name": "Remove label from message",
+      "webhookId": "b2e24af1-6e88-47ac-a4fc-285580e6b4a1",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6lB6mgLBMfvG3wjl",
+          "name": "Gmail account: info@glassbag.ie"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Read Approved Drafts": {
+      "main": [
+        [
+          {
+            "node": "Validation Switch",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remove label from thread1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remove label from message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validation Switch": {
+      "main": [
+        [
+          {
+            "node": "Send Gmail Reply",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Restore Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Gmail Reply": {
+      "main": [
+        [
+          {
+            "node": "Restore Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Data": {
+      "main": [
+        [
+          {
+            "node": "Update Support Log - Mark Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Support Log - Mark Sent": {
+      "main": [
+        [
+          {
+            "node": "Restore Data After Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Data After Update": {
+      "main": [
+        [
+          {
+            "node": "Requires External Action?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Requires External Action?": {
+      "main": [
+        [
+          {
+            "node": "Build Pending Action Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Pending Action Row": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remove label from message2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append or update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Ensure Sheet Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Approved Drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove label from message2": {
+      "main": [
+        []
+      ]
+    },
+    "When clicking \u2018Execute workflow\u2019": {
+      "main": [
+        [
+          {
+            "node": "Read Approved Drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

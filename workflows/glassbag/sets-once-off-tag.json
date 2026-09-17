@@ -1,0 +1,651 @@
+{
+  "_meta": {
+    "n8n_id": "i1tOtrTnPJc6pVnu",
+    "pulled_at": "2026-02-23T02:24:46Z",
+    "description": "NEW: GlassBag.ie - Sets Once Off Tag / 6am"
+  },
+  "name": "NEW: GlassBag.ie - Sets Once Off Tag / 6am",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        -80
+      ],
+      "id": "f95ef5dd-b88b-48ce-8ef7-62980fd30eb2",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "authentication": "accessToken",
+        "operation": "getAll",
+        "returnAll": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.shopify",
+      "typeVersion": 1,
+      "position": [
+        224,
+        -80
+      ],
+      "id": "b3446bde-2311-4c39-a916-d81a80cb431e",
+      "name": "Shopify",
+      "credentials": {
+        "shopifyAccessTokenApi": {
+          "id": "j9exlWYmEhc1mu8i",
+          "name": "Shopify Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d9200e14-dad0-4757-a743-fa6495d5dd7f",
+              "leftValue": "={{ $json.line_items[0].name }}",
+              "rightValue": "Once-Off",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        -80
+      ],
+      "id": "ea298274-7d28-4ee0-935d-b597656092fe",
+      "name": "Filter"
+    },
+    {
+      "parameters": {
+        "authentication": "accessToken",
+        "operation": "update",
+        "orderId": "={{$json[\"id\"]}}",
+        "updateFields": {
+          "tags": "Once-Off"
+        }
+      },
+      "type": "n8n-nodes-base.shopify",
+      "typeVersion": 1,
+      "position": [
+        672,
+        -80
+      ],
+      "id": "588ec568-f2ed-4dc6-b059-a8baeb1dc2ab",
+      "name": "Shopify1",
+      "credentials": {
+        "shopifyAccessTokenApi": {
+          "id": "j9exlWYmEhc1mu8i",
+          "name": "Shopify Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract Customer Data for Email Marketing Database - UPDATED STRUCTURE\n\nconst orderData = $input.first().json;\n\n// Helper function to normalize postal codes\nfunction normalizeAreaCode(zip, city) {\n  if (!zip && !city) return \"\";\n  \n  let code = (zip || city || \"\").trim().toUpperCase();\n  code = code.replace(/[\\s\\-\\.]/g, '');\n  \n  if (city && city.trim().toUpperCase().includes(\"WICKLOW\")) {\n    return \"WICKLOW\";\n  }\n  \n  if (code.startsWith('D') || code.startsWith('DUBLIN')) {\n    if (code.startsWith('DUBLIN')) {\n      code = code.replace('DUBLIN', 'D');\n    }\n    \n    if (code.length >= 3) {\n      const areaPart = code.substring(0, 3);\n      \n      if (areaPart === 'D6W') {\n        return 'D6W';\n      }\n      \n      const match = areaPart.match(/^D(\\d{1,2})/);\n      if (match) {\n        const num = match[1];\n        if (num.length === 1) {\n          return 'D0' + num;\n        }\n        return 'D' + num;\n      }\n    }\n  }\n  \n  if ((code.startsWith('A') || code.startsWith('K')) && code.length >= 3) {\n    const areaPart = code.substring(0, 3);\n    if (areaPart.match(/^[AK]\\d{2}$/)) {\n      return areaPart;\n    }\n  }\n  \n  return \"\";\n}\n\n// Area-to-schedule mapping\nconst areaSchedule = {\n  \"A94\": { week: 1, weekday: 2, text: \"First Tuesday\" }, \n  \"A96\": { week: 1, weekday: 2, text: \"First Tuesday\" },\n  \"D08\": { week: 1, weekday: 3, text: \"First Wednesday\" }, \n  \"D10\": { week: 1, weekday: 3, text: \"First Wednesday\" }, \n  \"D20\": { week: 1, weekday: 3, text: \"First Wednesday\" },\n  \"D05\": { week: 1, weekday: 4, text: \"First Thursday\" }, \n  \"D09\": { week: 1, weekday: 4, text: \"First Thursday\" }, \n  \"D13\": { week: 1, weekday: 4, text: \"First Thursday\" }, \n  \"D17\": { week: 1, weekday: 4, text: \"First Thursday\" },\n  \"D18\": { week: 2, weekday: 2, text: \"Second Tuesday\" },\n  \"D22\": { week: 2, weekday: 3, text: \"Second Wednesday\" }, \n  \"D24\": { week: 2, weekday: 3, text: \"Second Wednesday\" }, \n  \"K78\": { week: 2, weekday: 3, text: \"Second Wednesday\" },\n  \"D06\": { week: 2, weekday: 4, text: \"Second Thursday\" },\n  \"D16\": { week: 3, weekday: 2, text: \"Third Tuesday\" }, \n  \"WICKLOW\": { week: 3, weekday: 2, text: \"Third Tuesday\" },\n  \"D04\": { week: 3, weekday: 3, text: \"Third Wednesday\" },\n  \"D03\": { week: 3, weekday: 4, text: \"Third Thursday\" }, \n  \"D07\": { week: 3, weekday: 4, text: \"Third Thursday\" },\n  \"D14\": { week: 4, weekday: 2, text: \"Fourth Tuesday\" }, \n  \"D6W\": { week: 4, weekday: 2, text: \"Fourth Tuesday\" },\n  \"D02\": { week: 4, weekday: 3, text: \"Fourth Wednesday\" }, \n  \"D12\": { week: 4, weekday: 3, text: \"Fourth Wednesday\" },\n  \"A41\": { week: 4, weekday: 4, text: \"Fourth Thursday\" }, \n  \"A42\": { week: 4, weekday: 4, text: \"Fourth Thursday\" }, \n  \"A45\": { week: 4, weekday: 4, text: \"Fourth Thursday\" },\n  \"K32\": { week: 4, weekday: 4, text: \"Fourth Thursday\" }, \n  \"K33\": { week: 4, weekday: 4, text: \"Fourth Thursday\" }, \n  \"K34\": { week: 4, weekday: 4, text: \"Fourth Thursday\" },\n  \"K36\": { week: 4, weekday: 4, text: \"Fourth Thursday\" }, \n  \"K45\": { week: 4, weekday: 4, text: \"Fourth Thursday\" }, \n  \"K56\": { week: 4, weekday: 4, text: \"Fourth Thursday\" }, \n  \"K67\": { week: 4, weekday: 4, text: \"Fourth Thursday\" },\n  \"D01\": { week: 4, weekday: 5, text: \"Fourth Friday\" }, \n  \"D11\": { week: 4, weekday: 5, text: \"Fourth Friday\" }, \n  \"D15\": { week: 4, weekday: 5, text: \"Fourth Friday\" }\n};\n\nfunction getProvinceOverride(province, city, areaCode) {\n  province = (province || \"\").trim().toUpperCase();\n  city = (city || \"\").trim().toUpperCase();\n  if (province === \"MEATH\" || province === \"KILDARE\") {\n    return { week: 3, weekday: 5, text: \"Third Friday\" };\n  }\n  if (province === \"WICKLOW\" || city.includes(\"WICKLOW\") || areaCode === \"WICKLOW\") {\n    return { week: 3, weekday: 2, text: \"Third Tuesday\" };\n  }\n  return null;\n}\n\n// Extract customer information\nconst email = orderData.customer?.email || orderData.email || '';\nconst firstName = orderData.customer?.first_name || orderData.shipping_address?.first_name || '';\nconst lastName = orderData.customer?.last_name || orderData.shipping_address?.last_name || '';\nconst phone = orderData.customer?.phone || orderData.shipping_address?.phone || '';\n\n// Build full address\nconst address1 = orderData.shipping_address?.address1 || orderData.billing_address?.address1 || '';\nconst address2 = orderData.shipping_address?.address2 || orderData.billing_address?.address2 || '';\nconst city = orderData.shipping_address?.city || orderData.billing_address?.city || '';\nconst province = orderData.shipping_address?.province || orderData.billing_address?.province || '';\nconst zip = orderData.shipping_address?.zip || orderData.billing_address?.zip || '';\nconst country = orderData.shipping_address?.country || orderData.billing_address?.country || 'Ireland';\n\nlet fullAddress = address1;\nif (address2) fullAddress += `, ${address2}`;\nif (city) fullAddress += `, ${city}`;\nif (province) fullAddress += `, ${province}`;\nif (zip) fullAddress += `, ${zip}`;\nif (country && country !== 'Ireland') fullAddress += `, ${country}`;\n\n// Normalize eircode and determine collection schedule\nconst eircode = normalizeAreaCode(zip, city);\nlet schedule = getProvinceOverride(province, city, eircode);\nif (!schedule) {\n  schedule = areaSchedule[eircode] || { week: null, weekday: null, text: \"Unknown\" };\n}\n\n// Calculate next email date (2 months from today)\nconst today = new Date();\nconst nextEmailDate = new Date(today);\nnextEmailDate.setMonth(today.getMonth() + 2);\n\nconst formatDate = (date) => {\n  return date.toISOString().split('T')[0];\n};\n\n// UPDATED: Match new clean structure\nconst customerData = {\n  \"Email\": email,\n  \"First Name\": firstName,\n  \"Last Name\": lastName,\n  \"Full Address\": fullAddress,\n  \"Eircode\": eircode,\n  \"Phone\": phone,\n  \"Last Collection Date\": formatDate(today),\n  \"Last Order Date\": formatDate(new Date(orderData.created_at)),\n  \"Email Status\": \"Active\",\n  \"Last Email Sent Date\": \"\",\n  \"Email Count\": 0,\n  \"Next Email Due Date\": formatDate(nextEmailDate),\n  \"Collection Week\": schedule.week,\n  \"Collection Day\": schedule.text ? schedule.text.split(' ')[1] : '',\n  \"Collection Schedule Text\": schedule.text,\n  \"Notes\": `Order ID: ${orderData.id}`,\n  \"Source\": \"Auto-Once-Off\",\n  \"Date Added\": formatDate(today)\n};\n\nconsole.log(`Processing once-off customer: ${email} - ${schedule.text}`);\n\nreturn [{ json: customerData }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -80
+      ],
+      "id": "fbf3e3a4-6574-458b-ba8d-6ee5344258fc",
+      "name": "Extract Customer Data"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw",
+          "mode": "list",
+          "cachedResultName": "N8N - ONCE OFF SHEET",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1852950914,
+          "mode": "list",
+          "cachedResultName": "Once Off Email List Marketing Automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit#gid=1852950914"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $json.Email }}",
+            "First Name": "={{ $json[\"First Name\"] }}",
+            "Last Name": "={{ $json[\"Last Name\"] }}",
+            "Full Address": "={{ $json[\"Full Address\"] }}",
+            "Eircode": "={{ $json.Eircode }}",
+            "Phone": "={{ $json.Phone }}",
+            "Last Collection Date": "={{ $json[\"Last Collection Date\"] }}",
+            "Last Order Date": "={{ $json[\"Last Order Date\"] }}",
+            "Last Email Sent Date": "={{ $json[\"Last Email Sent Date\"] }}",
+            "Email Count": "={{ $json[\"Email Count\"] }}",
+            "Notes": "={{ $json.Notes }}",
+            "Date Added": "={{ $json[\"Date Added\"] }}",
+            "Collection Week": "={{ $json[\"Collection Week\"] }}",
+            "Collection Day": "={{ $json[\"Collection Day\"] }}",
+            "Collection Schedule Text": "={{ $json[\"Collection Schedule Text\"] }}",
+            "Email Status": "={{ $json[\"Email Status\"] }}",
+            "Source": "={{ $json.Source }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "First Name",
+              "displayName": "First Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Name",
+              "displayName": "Last Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Full Address",
+              "displayName": "Full Address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Eircode",
+              "displayName": "Eircode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Collection Date",
+              "displayName": "Last Collection Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Order Date",
+              "displayName": "Last Order Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Email Sent Date",
+              "displayName": "Last Email Sent Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Count",
+              "displayName": "Email Count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date Added",
+              "displayName": "Date Added",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Next Email Due Date",
+              "displayName": "Next Email Due Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Collection Week",
+              "displayName": "Collection Week",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Collection Day",
+              "displayName": "Collection Day",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Collection Schedule Text",
+              "displayName": "Collection Schedule Text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Status",
+              "displayName": "Email Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Match",
+              "displayName": "Email Match",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "MessageID",
+              "displayName": "MessageID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        -80
+      ],
+      "id": "b0528f61-be78-44f8-a816-22f6ea1b4d0d",
+      "name": "Add to Email Database",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw",
+          "mode": "list",
+          "cachedResultName": "N8N - ONCE OFF SHEET",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1852950914,
+          "mode": "list",
+          "cachedResultName": "Once Off Email List Marketing Automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit#gid=1852950914"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        1104,
+        -176
+      ],
+      "id": "353d486b-cf69-4ab0-87ab-643aeaa5ab99",
+      "name": "Fetch Existing Customers\"",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Access new customer data from the \"Edit Fields\" node\nconst newCustomer = $('Edit Fields').first().json;\n\n// Access existing customers data from current input (Fetch Existing Customers)\nconst existingCustomersInput = $input.first().json;\n\n// Handle existing customers data\nlet existingCustomers = [];\nif (Array.isArray(existingCustomersInput)) {\n  existingCustomers = existingCustomersInput;\n} else if (existingCustomersInput) {\n  existingCustomers = [existingCustomersInput];\n}\n\nconsole.log(`Checking new customer against ${existingCustomers.length} existing customers`);\n\n// Create a Set of existing emails for fast lookup (case-insensitive)\nconst existingEmails = new Set();\nexistingCustomers.forEach(customer => {\n  if (customer && customer.Email) {\n    existingEmails.add(customer.Email.toLowerCase().trim());\n  }\n});\n\n// Check if new customer email already exists\nconst newEmail = (newCustomer.Email || '').toLowerCase().trim();\n\nif (!newEmail) {\n  console.log('No email found in new customer data - skipping');\n  return [];\n}\n\nif (existingEmails.has(newEmail)) {\n  console.log(`Customer ${newEmail} already exists in database - skipping`);\n  return [];\n} else {\n  console.log(`New customer ${newEmail} - adding to database`);\n  return [{ json: newCustomer }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        -80
+      ],
+      "id": "57aa192e-8151-4471-b6be-35546f9e1a86",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f531e5d1-a2c7-40aa-8e72-144d58319293",
+              "name": "Email",
+              "value": "={{ $json.Email }}",
+              "type": "string"
+            },
+            {
+              "id": "97d344f3-be8b-42bf-9453-488aac412dfe",
+              "name": "First Name",
+              "value": "={{ $json[\"First Name\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "fc027479-eafb-46d8-a5a3-a0e982dd65e4",
+              "name": "Last Name",
+              "value": "={{ $json[\"Last Name\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "e2fefc5a-0436-4993-86db-828a6d624a68",
+              "name": "Full Address",
+              "value": "={{ $json[\"Full Address\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "bce7535e-626c-49eb-ac16-2dea94f31d00",
+              "name": "Eircode",
+              "value": "={{ $json.Eircode }}",
+              "type": "string"
+            },
+            {
+              "id": "632bc15d-5b1b-4595-b5f6-27bfd58b7028",
+              "name": "Phone",
+              "value": "={{ $json.Phone }}",
+              "type": "string"
+            },
+            {
+              "id": "6d647616-5f26-4aa9-a212-cc5227abc667",
+              "name": "Last Collection Date",
+              "value": "={{ $json[\"Last Collection Date\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "c172aec7-08a7-42af-a3e2-aa11c6252772",
+              "name": "Last Order Date",
+              "value": "={{ $json[\"Last Order Date\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "9acafc1d-97a8-4146-b185-1cf7d5d7cc53",
+              "name": "Email Status",
+              "value": "={{ $json[\"Email Status\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "d999bf4c-4d9d-456e-bb73-ff897f3e72e4",
+              "name": "Last Email Sent Date",
+              "value": "={{ $json[\"Last Email Sent Date\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "87e2d6bd-9fdd-4634-b5d8-3aa6b5a38eb8",
+              "name": "Email Count",
+              "value": "={{ $json[\"Email Count\"] }}",
+              "type": "number"
+            },
+            {
+              "id": "4bf93c27-a7fa-4a12-847b-ba90102d369f",
+              "name": "Collection Week",
+              "value": "={{ $json[\"Collection Week\"] }}",
+              "type": "number"
+            },
+            {
+              "id": "fde6d031-5a46-4efb-9b9e-0686fce0ba82",
+              "name": "Collection Day",
+              "value": "={{ $json[\"Collection Day\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "25c0d9da-01e0-4ccc-9cef-ee54fc758b12",
+              "name": "Collection Schedule Text",
+              "value": "={{ $json[\"Collection Schedule Text\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "6bc5ada2-3e2c-4604-91fa-da7524166704",
+              "name": "Notes",
+              "value": "={{ $json.Notes }}",
+              "type": "string"
+            },
+            {
+              "id": "3c68acf7-10f5-4afb-a10a-2bc5af176f82",
+              "name": "Source",
+              "value": "={{ $json.Source }}",
+              "type": "string"
+            },
+            {
+              "id": "c2d769d9-6df9-46b1-9ef4-9498350f6be5",
+              "name": "Date Added",
+              "value": "={{ $json[\"Date Added\"] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1104,
+        32
+      ],
+      "id": "7643914e-b42d-4f82-a83c-d9713638129b",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1328,
+        -80
+      ],
+      "id": "6dc48c1a-5212-4a46-8fcf-ae4b558ebb4d",
+      "name": "Merge"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Shopify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopify": {
+      "main": [
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Shopify1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Customer Data": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Existing Customers\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopify1": {
+      "main": [
+        [
+          {
+            "node": "Extract Customer Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Existing Customers\"": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Add to Email Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

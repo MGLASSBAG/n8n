@@ -1,0 +1,240 @@
+{
+  "_meta": {
+    "n8n_id": "cZ98HFjao5z48y0w",
+    "pulled_at": "2026-02-23T02:24:46Z",
+    "description": "NEW: Glassbag.ie: Support Summary Digest"
+  },
+  "name": "NEW: Glassbag.ie: Support Summary Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA",
+          "mode": "list",
+          "cachedResultName": "GlassBag Support System",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Main Support Inbox Log ",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "cab85da8-80d5-4eda-9b3c-2053886d8b63",
+      "name": "Read Support Log (All)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        208,
+        0
+      ],
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA",
+          "mode": "list",
+          "cachedResultName": "GlassBag Support System",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 22198673,
+          "mode": "list",
+          "cachedResultName": "Pending Actions Queue",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit#gid=22198673"
+        },
+        "options": {}
+      },
+      "id": "59cf16aa-a95e-4f01-ae72-cbdf8eebc524",
+      "name": "Read Pending Actions Queue",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        400,
+        0
+      ],
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const supportItems = $items('Read Support Log (All)').map(i => i.json || {});\nconst pendingItems = $items('Read Pending Actions Queue').map(i => i.json || {});\n\nfunction safe(v, d = '') {\n  if (v === undefined || v === null) return d;\n  return String(v);\n}\n\nfunction parseDateOnly(ts) {\n  if (!ts) return null;\n  const s = String(ts);\n  if (s.includes('T')) return s.split('T')[0];\n  // If already just a date like 2025-11-06\n  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(s)) return s;\n  return null;\n}\n\nfunction htmlEscape(str) {\n  return safe(str)\n    .replace(/&/g, '&amp;')\n    .replace(/</g, '&lt;')\n    .replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;')\n    .replace(/'/g, '&#39;');\n}\n\nconst todayIso = new Date().toISOString().slice(0, 10);\n\n// Filter today's support activity (by timestamp date part)\nconst todaysSupport = supportItems.filter(r => parseDateOnly(r.timestamp) === todayIso);\n\nlet totalMessages = todaysSupport.length;\nlet byCategory = {};\nlet byDraftStatus = {};\nlet needsAdminCount = 0;\nlet createTaskCount = 0;\nlet autoSendCount = 0;\nlet processedCount = 0;\n\nfor (const r of todaysSupport) {\n  const cat = (safe(r.category) || 'uncategorised').toLowerCase() || 'uncategorised';\n  byCategory[cat] = (byCategory[cat] || 0) + 1;\n\n  const st = safe(r.draft_status) || 'unknown';\n  byDraftStatus[st] = (byDraftStatus[st] || 0) + 1;\n\n  const needsAdmin = String(r.needs_admin).toUpperCase() === 'TRUE' || r.needs_admin === true;\n  const createTask = String(r.create_task).toUpperCase() === 'TRUE' || r.create_task === true;\n  const autoSend = String(r.auto_send_eligible).toUpperCase() === 'TRUE' || r.auto_send_eligible === true;\n  const processed = String(r.processed).toUpperCase() === 'TRUE' || r.processed === true;\n\n  if (needsAdmin) needsAdminCount++;\n  if (createTask) createTaskCount++;\n  if (autoSend) autoSendCount++;\n  if (processed) processedCount++;\n}\n\n// Pending actions: open / pending & not completed\nconst pendingOpen = pendingItems.filter(r => {\n  const status = safe(r.status).toLowerCase();\n  const completed = safe(r.completed_at).trim() !== '';\n  return !completed && (status === 'pending' || status === 'open' || status === '');\n});\n\nconst pendingCount = pendingOpen.length;\n\nlet byPriority = {};\nfor (const r of pendingOpen) {\n  const p = safe(r.priority || 'normal').toLowerCase();\n  byPriority[p] = (byPriority[p] || 0) + 1;\n}\n\n// Build small tables for email list & actions list (top 10 rows each)\nconst supportRowsHtml = todaysSupport\n  .slice(0, 10)\n  .map(r => {\n    const timeStr = safe(r.timestamp).split('T')[1] || '';\n    const hhmm = timeStr ? timeStr.slice(0, 5) : '';\n    const from = htmlEscape(r.email_from || r.email || '');\n    const subject = htmlEscape(r.subject || '(no subject)');\n    const cat = htmlEscape(r.category || '');\n    const subcat = htmlEscape(r.subcategory || '');\n    const status = htmlEscape(r.draft_status || '');\n    const needsAdmin = String(r.needs_admin).toUpperCase() === 'TRUE' || r.needs_admin === true;\n    const createTask = String(r.create_task).toUpperCase() === 'TRUE' || r.create_task === true;\n\n    return `\n      <tr>\n        <td style=\"padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:12px; white-space:nowrap;\">${hhmm}</td>\n        <td style=\"padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:12px;\">${from}</td>\n        <td style=\"padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:12px;\">${subject}</td>\n        <td style=\"padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:12px; white-space:nowrap;\">${cat}${subcat ? ' \u2192 ' + subcat : ''}</td>\n        <td style=\"padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:12px;\">${status}</td>\n        <td style=\"padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:12px; text-align:center;\">${needsAdmin ? '\u26a0\ufe0f' : ''}</td>\n        <td style=\"padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:12px; text-align:center;\">${createTask ? '\ud83e\udde9' : ''}</td>\n      </tr>`;\n  })\n  .join('') || `\n    <tr>\n      <td colspan=\"7\" style=\"padding:10px; font-size:12px; color:#6b7280; text-align:center; border-bottom:1px solid #e5e7eb;\">\n        No support messages logged for today.\n      </td>\n    </tr>`;\n\nconst pendingRowsHtml = pendingOpen\n  .slice(0, 10)\n  .map(r => {\n    const created = htmlEscape(r.created_at || '');\n    const name = htmlEscape(r.customer_name || '');\n    const email = htmlEscape(r.email || '');\n    const action = htmlEscape(r.action_type || '');\n    const priority = htmlEscape(r.priority || '');\n    const status = htmlEscape(r.status || 'pending');\n\n    return `\n      <tr>\n        <td style=\"padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:12px; white-space:nowrap;\">${created}</td>\n        <td style=\"padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:12px;\">${name}</td>\n        <td style=\"padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:12px;\">${email}</td>\n        <td style=\"padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:12px;\">${action}</td>\n        <td style=\"padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:12px;\">${priority}</td>\n        <td style=\"padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:12px;\">${status}</td>\n      </tr>`;\n  })\n  .join('') || `\n    <tr>\n      <td colspan=\"6\" style=\"padding:10px; font-size:12px; color:#6b7280; text-align:center; border-bottom:1px solid #e5e7eb;\">\n        No open or pending actions in the queue.\n      </td>\n    </tr>`;\n\n// Summaries as text (plain-text fallback)\nfunction summaryList(obj) {\n  const entries = Object.entries(obj);\n  if (!entries.length) return 'none';\n  return entries.map(([k, v]) => `${k}: ${v}`).join(', ');\n}\n\nconst textLines = [];\ntextLines.push(`GlassBag \u2013 Daily Support Digest (${todayIso})`);\ntextLines.push('');\ntextLines.push('SUPPORT ACTIVITY (today)');\ntextLines.push(`- Total messages: ${totalMessages}`);\ntextLines.push(`- Needs admin review: ${needsAdminCount}`);\ntextLines.push(`- Create task: ${createTaskCount}`);\ntextLines.push(`- Auto-send eligible: ${autoSendCount}`);\ntextLines.push(`- Processed/sent: ${processedCount}`);\ntextLines.push(`- By category: ${summaryList(byCategory)}`);\ntextLines.push(`- By draft status: ${summaryList(byDraftStatus)}`);\ntextLines.push('');\ntextLines.push('PENDING ACTIONS');\ntextLines.push(`- Open/pending actions: ${pendingCount}`);\ntextLines.push(`- By priority: ${summaryList(byPriority)}`);\ntextLines.push('');\ntextLines.push('For full details, check:');\ntextLines.push('- Main Support Inbox Log');\ntextLines.push('- Pending Actions Queue');\n\nconst emailBodyText = textLines.join('\\n');\n\n// Prettier HTML email\nconst emailBodyHtml = `\n<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\" />\n  <title>GlassBag \u2013 Daily Support Digest (${todayIso})</title>\n</head>\n<body style=\"margin:0; padding:0; background-color:#f4f6f8; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;\">\n  <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background-color:#f4f6f8; padding:24px 0;\">\n    <tr>\n      <td align=\"center\">\n        <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:900px; background-color:#ffffff; border-radius:14px; overflow:hidden; box-shadow:0 6px 18px rgba(15,23,42,0.10);\">\n          <!-- Header -->\n          <tr>\n            <td style=\"background:linear-gradient(135deg,#16a34a,#15803d); padding:18px 24px; color:#ffffff;\">\n              <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">\n                <tr>\n                  <td style=\"font-size:20px; font-weight:600;\">GlassBag \u2013 Daily Support Digest</td>\n                  <td style=\"text-align:right; font-size:12px; opacity:0.9;\">${todayIso}</td>\n                </tr>\n              </table>\n              <p style=\"margin:8px 0 0; font-size:13px; opacity:0.9;\">\n                Snapshot of today's support activity and open follow-ups.\n              </p>\n            </td>\n          </tr>\n\n          <!-- Intro -->\n          <tr>\n            <td style=\"padding:16px 24px 8px; font-size:13px; color:#4b5563;\">\n              <p style=\"margin:0 0 6px;\">Hi Mark,</p>\n              <p style=\"margin:0;\">Here\u2019s a quick overview you can scan in under a minute.</p>\n            </td>\n          </tr>\n\n          <!-- KPI chips row -->\n          <tr>\n            <td style=\"padding:8px 24px 16px;\">\n              <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n                <tr>\n                  <td style=\"width:25%; padding:6px 6px 6px 0;\">\n                    <div style=\"border-radius:999px; background:#ecfdf3; border:1px solid #bbf7d0; padding:8px 12px; font-size:12px; color:#166534;\">\n                      <div style=\"font-size:11px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.8;\">Total messages</div>\n                      <div style=\"font-size:18px; font-weight:700; margin-top:2px;\">${totalMessages}</div>\n                    </div>\n                  </td>\n                  <td style=\"width:25%; padding:6px;\">\n                    <div style=\"border-radius:999px; background:#fef2f2; border:1px solid #fecaca; padding:8px 12px; font-size:12px; color:#b91c1c;\">\n                      <div style=\"font-size:11px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.8;\">Needs admin</div>\n                      <div style=\"font-size:18px; font-weight:700; margin-top:2px;\">${needsAdminCount}</div>\n                    </div>\n                  </td>\n                  <td style=\"width:25%; padding:6px;\">\n                    <div style=\"border-radius:999px; background:#eff6ff; border:1px solid #bfdbfe; padding:8px 12px; font-size:12px; color:#1d4ed8;\">\n                      <div style=\"font-size:11px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.8;\">Tasks created</div>\n                      <div style=\"font-size:18px; font-weight:700; margin-top:2px;\">${createTaskCount}</div>\n                    </div>\n                  </td>\n                  <td style=\"width:25%; padding:6px 0 6px 6px;\">\n                    <div style=\"border-radius:999px; background:#fffbeb; border:1px solid #facc15; padding:8px 12px; font-size:12px; color:#854d0e;\">\n                      <div style=\"font-size:11px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.8;\">Pending actions</div>\n                      <div style=\"font-size:18px; font-weight:700; margin-top:2px;\">${pendingCount}</div>\n                    </div>\n                  </td>\n                </tr>\n              </table>\n            </td>\n          </tr>\n\n          <!-- Summary lists -->\n          <tr>\n            <td style=\"padding:0 24px 16px;\">\n              <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n                <tr>\n                  <td style=\"width:50%; padding-right:8px; vertical-align:top;\">\n                    <div style=\"border-radius:10px; border:1px solid #e5e7eb; background:#f9fafb; padding:10px 12px; font-size:12px; color:#374151;\">\n                      <div style=\"font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#6b7280; margin-bottom:4px;\">By category</div>\n                      <ul style=\"margin:0; padding-left:16px; list-style-type:disc;\">\n                        ${\n                          Object.entries(byCategory).length\n                            ? Object.entries(byCategory)\n                                .map(([k, v]) => `<li>${htmlEscape(k)}: <strong>${v}</strong></li>`)\n                                .join('')\n                            : '<li>No messages today</li>'\n                        }\n                      </ul>\n                    </div>\n                  </td>\n                  <td style=\"width:50%; padding-left:8px; vertical-align:top;\">\n                    <div style=\"border-radius:10px; border:1px solid #e5e7eb; background:#f9fafb; padding:10px 12px; font-size:12px; color:#374151;\">\n                      <div style=\"font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#6b7280; margin-bottom:4px;\">By draft status</div>\n                      <ul style=\"margin:0; padding-left:16px; list-style-type:disc;\">\n                        ${\n                          Object.entries(byDraftStatus).length\n                            ? Object.entries(byDraftStatus)\n                                .map(([k, v]) => `<li>${htmlEscape(k)}: <strong>${v}</strong></li>`)\n                                .join('')\n                            : '<li>No messages today</li>'\n                        }\n                      </ul>\n                    </div>\n                  </td>\n                </tr>\n              </table>\n            </td>\n          </tr>\n\n          <!-- Support table -->\n          <tr>\n            <td style=\"padding:0 24px 16px;\">\n              <h2 style=\"margin:0 0 6px; font-size:14px; color:#111827;\">Today's support messages (top 10)</h2>\n              <p style=\"margin:0 0 8px; font-size:11px; color:#6b7280;\">\u26a0\ufe0f = needs admin review &nbsp;\u00b7&nbsp; \ud83e\udde9 = follow-up task created</p>\n              <div style=\"border-radius:8px; border:1px solid #e5e7eb; overflow:hidden; background-color:#f9fafb;\">\n                <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n                  <thead>\n                    <tr style=\"background-color:#e5e7eb;\">\n                      <th style=\"padding:6px 8px; font-size:11px; text-align:left;\">Time</th>\n                      <th style=\"padding:6px 8px; font-size:11px; text-align:left;\">From</th>\n                      <th style=\"padding:6px 8px; font-size:11px; text-align:left;\">Subject</th>\n                      <th style=\"padding:6px 8px; font-size:11px; text-align:left;\">Category</th>\n                      <th style=\"padding:6px 8px; font-size:11px; text-align:left;\">Draft status</th>\n                      <th style=\"padding:6px 8px; font-size:11px; text-align:center;\">Admin?</th>\n                      <th style=\"padding:6px 8px; font-size:11px; text-align:center;\">Task?</th>\n                    </tr>\n                  </thead>\n                  <tbody>\n                    ${supportRowsHtml}\n                  </tbody>\n                </table>\n              </div>\n            </td>\n          </tr>\n\n          <!-- Pending actions table -->\n          <tr>\n            <td style=\"padding:0 24px 20px;\">\n              <h2 style=\"margin:0 0 6px; font-size:14px; color:#111827;\">Pending actions queue (top 10)</h2>\n              <p style=\"margin:0 0 8px; font-size:11px; color:#6b7280;\">Sorted as in your sheet \u2013 check the sheet for full list.</p>\n              <div style=\"border-radius:8px; border:1px solid #e5e7eb; overflow:hidden; background-color:#ffffff;\">\n                <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n                  <thead>\n                    <tr style=\"background-color:#e5e7eb;\">\n                      <th style=\"padding:6px 8px; font-size:11px; text-align:left;\">Created</th>\n                      <th style=\"padding:6px 8px; font-size:11px; text-align:left;\">Customer</th>\n                      <th style=\"padding:6px 8px; font-size:11px; text-align:left;\">Email</th>\n                      <th style=\"padding:6px 8px; font-size:11px; text-align:left;\">Action type</th>\n                      <th style=\"padding:6px 8px; font-size:11px; text-align:left;\">Priority</th>\n                      <th style=\"padding:6px 8px; font-size:11px; text-align:left;\">Status</th>\n                    </tr>\n                  </thead>\n                  <tbody>\n                    ${pendingRowsHtml}\n                  </tbody>\n                </table>\n              </div>\n            </td>\n          </tr>\n\n          <!-- Footer -->\n          <tr>\n            <td style=\"padding:12px 24px 18px; font-size:11px; color:#9ca3af; border-top:1px solid #e5e7eb;\">\n              <p style=\"margin:0 0 4px;\">This email was generated automatically by the GlassBag Support System.</p>\n              <p style=\"margin:0;\">For full details, open \u201cMain Support Inbox Log\u201d and \u201cPending Actions Queue\u201d in the Support System sheet.</p>\n            </td>\n          </tr>\n        </table>\n        <p style=\"margin:12px 0 0; font-size:11px; color:#9ca3af;\">\u00a9 ${new Date().getFullYear()} GlassBag.ie</p>\n      </td>\n    </tr>\n  </table>\n</body>\n</html>\n`;\n\nconst emailSubject = `GlassBag \u2013 Daily Support Digest (${todayIso})`;\n\nreturn [{\n  json: {\n    digest_date: todayIso,\n    email_subject: emailSubject,\n    email_body: emailBodyText,\n    email_body_html: emailBodyHtml\n  }\n}];\n"
+      },
+      "id": "6e1227a1-0b40-4db2-860d-d4844c4869b1",
+      "name": "Build Daily Digest Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "=mark@glassbag.ie",
+        "subject": "={{ $json.email_subject }}",
+        "message": "={{ $json.email_body_html }}",
+        "options": {}
+      },
+      "id": "6aa600ba-4192-4ec6-87a7-88fa5d76b84c",
+      "name": "Send Daily Digest Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        832,
+        -80
+      ],
+      "webhookId": "f4f20c0a-94bf-4acd-a5ed-6d35884cdbcb",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6lB6mgLBMfvG3wjl",
+          "name": "Gmail account: info@glassbag.ie"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 12
+            }
+          ]
+        }
+      },
+      "id": "fa0be49b-08c9-4920-b6b8-c66b7bed813d",
+      "name": "Trigger - Noon",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -16,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 20
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -16,
+        112
+      ],
+      "id": "612ce25a-6b3a-4d6a-a36e-1c310fa01e8e",
+      "name": "Trigger - 8pm"
+    },
+    {
+      "parameters": {
+        "sendTo": "=david@glassbag.ie",
+        "subject": "={{ $json.email_subject }}",
+        "message": "={{ $json.email_body_html }}",
+        "options": {}
+      },
+      "id": "5d3c6936-7e2b-4527-83d7-f01fb38e91d2",
+      "name": "Send Daily Digest Email1",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        832,
+        112
+      ],
+      "webhookId": "f4f20c0a-94bf-4acd-a5ed-6d35884cdbcb",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6lB6mgLBMfvG3wjl",
+          "name": "Gmail account: info@glassbag.ie"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Read Support Log (All)": {
+      "main": [
+        [
+          {
+            "node": "Read Pending Actions Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Pending Actions Queue": {
+      "main": [
+        [
+          {
+            "node": "Build Daily Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Daily Digest Email": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Digest Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Daily Digest Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger - Noon": {
+      "main": [
+        [
+          {
+            "node": "Read Support Log (All)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger - 8pm": {
+      "main": [
+        [
+          {
+            "node": "Read Support Log (All)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

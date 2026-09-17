@@ -1,0 +1,446 @@
+{
+  "_meta": {
+    "n8n_id": "Ty7TNdNQjjLjDIHg",
+    "pulled_at": "2026-02-23T02:24:46Z",
+    "description": "Update Once Off Sheet via Emily Chat + New Subscription Order via WooCommerce"
+  },
+  "name": "Update Once Off Sheet via Emily Chat + New Subscription Order via WooCommerce",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "0e1235bd-e28d-4d34-8c4e-2c2ca0207a19",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4244a5ed-4549-4620-8e8f-69e46a147086",
+      "name": "Webhook",
+      "webhookId": "0e1235bd-e28d-4d34-8c4e-2c2ca0207a19"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw",
+          "mode": "list",
+          "cachedResultName": "N8N - ONCE OFF SHEET",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $json.body.email }}",
+            "Full Name": "={{ $json.body.full_name }}",
+            "Zip": "={{ $json.body.zip }}",
+            "Address 1": "={{ $json.body.address1 }}",
+            "Address 2": "={{ $json.body.address2 }}",
+            "City": "={{ $json.body.city }}",
+            "Province": "={{ $json.body.province }}",
+            "Country": "={{ $json.body.country }}",
+            "Phone": "={{ (() => {\n  const DELIVERY_PHONE = '873157744';\n  const actionType = String($json.action_type || '').toLowerCase();\n  const fullName = String((($json.onceOffRow && $json.onceOffRow['Full Name']) || $json['Full Name'] || ($json.body && $json.body.full_name) || '')).toUpperCase();\n  const notes = String(($json.notes || ($json.onceOffRow && $json.onceOffRow.Notes) || ($json.body && $json.body.notes) || '')).toUpperCase();\n  const isDelivery = actionType === 'deliver_bag' || fullName.startsWith('DELIVER') || notes.includes('DELIVER BAG') || notes.includes('NEVER RECEIVED BAG');\n  if (isDelivery) return DELIVERY_PHONE;\n\n  const rawPhone = String((($json.onceOffRow && $json.onceOffRow.Phone) || $json.Phone || ($json.body && $json.body.phone) || ''));\n  let digits = rawPhone.replace(/\\D/g, '');\n  if (digits.startsWith('00')) digits = digits.slice(2);\n  if (digits.startsWith('353')) digits = digits.slice(3);\n  if (digits.startsWith('0')) digits = digits.slice(1);\n\n  const matches = digits.match(/8\\d{8}/g) || [];\n  if (!matches.length) return '';\n  return matches[matches.length - 1].slice(-9);\n})() }}",
+            "Notes": "={{ $json.body.notes }}",
+            "Month": "={{ $json.body.month }}",
+            "Collection Week": "={{ $json.body.collection_week }}",
+            "Collection Day": "={{ $json.body.collection_day }}"
+          },
+          "matchingColumns": [
+            "Zip"
+          ],
+          "schema": [
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Full Name",
+              "displayName": "Full Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Column 1",
+              "displayName": "Column 1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Address 1",
+              "displayName": "Address 1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Address 2",
+              "displayName": "Address 2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "City",
+              "displayName": "City",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Province",
+              "displayName": "Province",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Zip",
+              "displayName": "Zip",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Country",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Month",
+              "displayName": "Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Collection Week",
+              "displayName": "Collection Week",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Collection Day",
+              "displayName": "Collection Day",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        208,
+        0
+      ],
+      "id": "cee79c69-ac48-4df6-9959-5827b75b226b",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "0278e383-4722-4ea3-808f-1198de6742aa",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        256
+      ],
+      "id": "9d35da78-396f-40dd-9c76-879b380bfbcd",
+      "name": "Webhook1",
+      "webhookId": "0278e383-4722-4ea3-808f-1198de6742aa"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw",
+          "mode": "list",
+          "cachedResultName": "N8N - ONCE OFF SHEET",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $json.body.email }}",
+            "Full Name": "={{ $json.body.full_name }}",
+            "Zip": "={{ $json.body.zip }}",
+            "Address 1": "={{ $json.body.address1 }}",
+            "Address 2": "={{ $json.body.address2 }}",
+            "City": "={{ $json.body.city }}",
+            "Province": "={{ $json.body.province }}",
+            "Country": "={{ $json.body.country }}",
+            "Phone": "={{ (() => {\n  const DELIVERY_PHONE = '873157744';\n  const actionType = String($json.action_type || '').toLowerCase();\n  const fullName = String((($json.onceOffRow && $json.onceOffRow['Full Name']) || $json['Full Name'] || ($json.body && $json.body.full_name) || '')).toUpperCase();\n  const notes = String(($json.notes || ($json.onceOffRow && $json.onceOffRow.Notes) || ($json.body && $json.body.notes) || '')).toUpperCase();\n  const isDelivery = actionType === 'deliver_bag' || fullName.startsWith('DELIVER') || notes.includes('DELIVER BAG') || notes.includes('NEVER RECEIVED BAG');\n  if (isDelivery) return DELIVERY_PHONE;\n\n  const rawPhone = String((($json.onceOffRow && $json.onceOffRow.Phone) || $json.Phone || ($json.body && $json.body.phone) || ''));\n  let digits = rawPhone.replace(/\\D/g, '');\n  if (digits.startsWith('00')) digits = digits.slice(2);\n  if (digits.startsWith('353')) digits = digits.slice(3);\n  if (digits.startsWith('0')) digits = digits.slice(1);\n\n  const matches = digits.match(/8\\d{8}/g) || [];\n  if (!matches.length) return '';\n  return matches[matches.length - 1].slice(-9);\n})() }}",
+            "Notes": "={{ $json.body.notes }}",
+            "Month": "={{ $json.body.month }}",
+            "Collection Week": "={{ $json.body.collection_week }}",
+            "Collection Day": "={{ $json.body.collection_day }}"
+          },
+          "matchingColumns": [
+            "Zip"
+          ],
+          "schema": [
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Full Name",
+              "displayName": "Full Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Column 1",
+              "displayName": "Column 1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Address 1",
+              "displayName": "Address 1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Address 2",
+              "displayName": "Address 2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "City",
+              "displayName": "City",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Province",
+              "displayName": "Province",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Zip",
+              "displayName": "Zip",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Country",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Month",
+              "displayName": "Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Collection Week",
+              "displayName": "Collection Week",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Collection Day",
+              "displayName": "Collection Day",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        208,
+        256
+      ],
+      "id": "022b75f6-ef60-4a78-83b0-5ad1f907e804",
+      "name": "Append row in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
+}

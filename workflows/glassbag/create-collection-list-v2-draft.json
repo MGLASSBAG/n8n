@@ -1,0 +1,923 @@
+{
+  "_meta": {
+    "n8n_id": "4vDnuuodFnOpotpp",
+    "description": "DRAFT v2: Glassbag.ie - Create Collection List (Simplified)",
+    "based_on": "uwUqy4eJkrPDiXOO",
+    "pulled_at": "2026-02-23T18:45:56Z"
+  },
+  "name": "DRAFT v2: Glassbag.ie - Create Collection List",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 15,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "id": "f6c73fb9-124d-435c-8ccf-b28ab53122dc",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -800,
+        400
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        600
+      ],
+      "id": "aede2b8a-d580-4e6f-ab89-b3602571e030",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "url": "https://glassbottlebin.ie/wp-json/wc/v3/subscriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "active"
+            },
+            {
+              "name": "per_page",
+              "value": "100"
+            },
+            {
+              "name": "page",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "page",
+                    "value": "={{ $pageCount + 1 }}"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "id": "f8bbd869-19ca-4d1a-af1e-57571d565f92",
+      "name": "Fetch WC Active",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -500,
+        200
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "BaAsxtNsh2ItOo7n",
+          "name": "WordPress Basic"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://glassbottlebin.ie/wp-json/wc/v3/subscriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "pending-cancel"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "page",
+                    "value": "={{ $pageCount + 1 }}"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "id": "e59cba4c-85bc-4d42-8275-f7bf67b81bcc",
+      "name": "Fetch WC Pending-Cancel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -500,
+        400
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "BaAsxtNsh2ItOo7n",
+          "name": "WordPress Basic"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fetch ALL ReCharge charges with cursor pagination + transform\nconst TOKEN = 'sk_1x1_98b503a3dcdec3ab0306bb2c719af73c95c47cb3e837c858728a93198078360a';\nconst HEADERS = {\n  'X-Recharge-Access-Token': TOKEN,\n  'Accept': 'application/json',\n  'X-Recharge-Version': '2021-11'\n};\nconst today = new Date().toISOString().split('T')[0];\nconst nextYear = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0];\n\nlet url = `https://api.rechargeapps.com/charges?status=QUEUED&scheduled_at_min=${today}&scheduled_at_max=${nextYear}&limit=250&order_by=scheduled_at-asc`;\nconst seenIds = new Set();\nconst transformed = [];\nlet page = 0;\n\nwhile (url && page < 10) {\n  page++;\n  const resp = await this.helpers.httpRequest({ method: 'GET', url, headers: HEADERS, json: true });\n  const charges = resp.charges || [];\n  console.log(`Page ${page}: ${charges.length} charges`);\n\n  for (const charge of charges) {\n    if (charge.id && seenIds.has(charge.id)) continue;\n    if (charge.id) seenIds.add(charge.id);\n    transformed.push({\n      json: {\n        source: 'recharge',\n        email: charge.customer?.email || charge.email || '',\n        first_name: charge.shipping_address?.first_name || charge.first_name || '',\n        last_name: charge.shipping_address?.last_name || charge.last_name || '',\n        address_1: charge.shipping_address?.address1 || '',\n        address_2: charge.shipping_address?.address2 || '',\n        city: charge.shipping_address?.city || '',\n        province: charge.shipping_address?.province || '',\n        zip: charge.shipping_address?.zip || '',\n        country: charge.shipping_address?.country_code || charge.shipping_address?.country || 'IE',\n        phone: charge.shipping_address?.phone || '',\n        scheduled_date: charge.scheduled_at,\n        status: charge.status\n      }\n    });\n  }\n\n  // Next page: use page_info cursor param\n  url = resp.next_cursor\n    ? `https://api.rechargeapps.com/charges?page_info=${resp.next_cursor}&limit=250`\n    : null;\n}\n\nconsole.log(`Total: ${transformed.length} unique charges across ${page} pages`);\nreturn transformed;"
+      },
+      "id": "879c3ad9-1a03-4a87-910e-849f30427d95",
+      "name": "Fetch All ReCharge Charges",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -500,
+        600
+      ],
+      "notesInFlow": true,
+      "notes": "Fetches all pages via cursor pagination + transforms"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw",
+          "mode": "list",
+          "cachedResultName": "N8N - ONCE OFF SHEET",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit#gid=0"
+        },
+        "combineFilters": "AND",
+        "options": {}
+      },
+      "id": "6b62e49a-9d26-410b-a0ee-779d5a1cf9a3",
+      "name": "Fetch Once-Off Orders",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        -500,
+        800
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://gbr-api.vercel.app/api/collection-date",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pattern_only",
+              "value": "=1"
+            },
+            {
+              "name": "days_ahead",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -500,
+        1000
+      ],
+      "id": "32692f5f-ee4f-4874-a8c8-3f6a41fe70ed",
+      "name": "Get Pattern",
+      "executeOnce": true
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -200,
+        300
+      ],
+      "id": "draft-001c267e5cba",
+      "name": "Merge WC Sources"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transform WooCommerce data (prefer BILLING details)\nconst wooItems = $input.all();\nconst transformedWoo = [];\n\nfor (const item of wooItems) {\n  transformedWoo.push({\n    json: {\n      // Exact header order required for CSV\n      source: 'wordpress',\n      email: item.json.billing?.email || item.json.customer_email || '',\n      first_name: item.json.billing?.first_name || item.json.shipping?.first_name || '',\n      last_name: item.json.billing?.last_name || item.json.shipping?.last_name || '',\n      address_1: item.json.billing?.address_1 || item.json.shipping?.address_1 || '',\n      address_2: item.json.billing?.address_2 || item.json.shipping?.address_2 || '',\n      city: item.json.billing?.city || item.json.shipping?.city || '',\n      province: item.json.billing?.state || item.json.shipping?.state || '',\n      zip: item.json.billing?.postcode || item.json.shipping?.postcode || '',\n      country: item.json.billing?.country || item.json.shipping?.country || 'IE',\n      phone: item.json.billing?.phone || '',\n      scheduled_date: item.json.next_payment_date,\n      status: item.json.status\n    }\n  });\n}\n\nreturn transformedWoo;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -10,
+        300
+      ],
+      "id": "draft-005fcc0f3434",
+      "name": "Transform WooCommerce Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === GOOGLE SHEETS TRANSFORMER — NO MONTH FILTER (Filter Tomorrow node decides) ===\n\n// ---------------- Phone (local) ----------------\nfunction toLocalMobile(num10) {\n  if (!/^08\\d{8}$/.test(num10)) return num10;\n  return num10.slice(0,3) + \" \" + num10.slice(3,6) + \" \" + num10.slice(6);\n}\nfunction formatIrishMobileLocal(phone) {\n  if (!phone) return \"\";\n  let p = String(phone).trim();\n  p = p.replace(/[^\\d+]/g, \"\");\n  if (p.startsWith(\"00\")) p = \"+\" + p.slice(2);\n  if (p.startsWith(\"353\") && !p.startsWith(\"+353\")) p = \"+\" + p;\n  if (p.startsWith(\"+353\")) {\n    let rest = p.slice(4);\n    if (rest.startsWith(\"0\")) rest = rest.slice(1);\n    return toLocalMobile(\"0\" + rest);\n  }\n  const d = p.replace(/[^\\d]/g, \"\");\n  if (/^08\\d{8}$/.test(d)) return toLocalMobile(d);\n  if (/^8\\d{8}$/.test(d)) return toLocalMobile(\"0\" + d);\n  if (/^0\\d{7,9}$/.test(d)) return d;\n  if (/^353\\d{8,9}$/.test(d)) {\n    let rest = d.slice(3);\n    if (rest.startsWith(\"0\")) rest = rest.slice(1);\n    return toLocalMobile(\"0\" + rest);\n  }\n  return String(phone).trim();\n}\n\n// ---------------- Helpers ----------------\nconst WEEK_NAME_TO_NUM = { first:1, second:2, third:3, fourth:4, fifth:5 };\nconst NUM_TO_WEEK_NAME = [\"First\",\"Second\",\"Third\",\"Fourth\",\"Fifth\"];\nconst DAY_NAME_TO_JS   = { sunday:0, monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6 };\nconst JS_TO_DAY_NAME   = [\"Sunday\",\"Monday\",\"Tuesday\",\"Wednesday\",\"Thursday\",\"Friday\",\"Saturday\"];\n\nfunction parseWeek(value) {\n  if (value == null) return null;\n  const raw = String(value).trim().toLowerCase();\n  const numMatch = raw.match(/\\b([1-5])\\b/);\n  if (numMatch) return Number(numMatch[1]);\n  const word = raw.replace(/week|wk|#|-/g, \"\").trim();\n  if (WEEK_NAME_TO_NUM[word]) return WEEK_NAME_TO_NUM[word];\n  return null;\n}\n\nfunction parseWeekday(value) {\n  if (!value) return null;\n  const raw = String(value).trim();\n  const dayLower = raw.toLowerCase();\n  if (DAY_NAME_TO_JS[dayLower] != null) return DAY_NAME_TO_JS[dayLower];\n  const short = dayLower.slice(0,3);\n  const MAP3 = { sun:0, mon:1, tue:2, wed:3, thu:4, fri:5, sat:6 };\n  if (MAP3[short] != null) return MAP3[short];\n  const parts = raw.split(/\\s+/);\n  const maybeDay = parts[parts.length - 1].toLowerCase();\n  if (DAY_NAME_TO_JS[maybeDay] != null) return DAY_NAME_TO_JS[maybeDay];\n  return null;\n}\n\nfunction deriveWeekAndDay(row) {\n  const weekField =\n    row[\"Week\"] ?? row[\"Collection Week\"] ?? row[\"collection_week\"] ?? row[\"week\"] ?? row[\"WEEK\"];\n  const dayField =\n    row[\"Day\"] ?? row[\"Collection Day\"] ?? row[\"collection_day\"] ?? row[\"day\"] ?? row[\"DAY\"];\n\n  let weekNum = parseWeek(weekField);\n  let jsDay   = parseWeekday(dayField);\n\n  // Allow \"First Tuesday\" style in dayField to backfill both\n  if ((weekNum == null || jsDay == null) && typeof dayField === \"string\") {\n    const lower = dayField.toLowerCase();\n    const wkWord = Object.keys(WEEK_NAME_TO_NUM).find(w => lower.startsWith(w));\n    if (wkWord) weekNum = weekNum ?? WEEK_NAME_TO_NUM[wkWord];\n    const dayWord = Object.keys(DAY_NAME_TO_JS).find(d => lower.includes(d));\n    if (dayWord) jsDay = jsDay ?? DAY_NAME_TO_JS[dayWord];\n  }\n\n  let label = \"\";\n  if (weekNum != null && jsDay != null) {\n    label = `${NUM_TO_WEEK_NAME[weekNum - 1]} ${JS_TO_DAY_NAME[jsDay]}`;\n  } else if (typeof dayField === \"string\") {\n    label = dayField;\n  }\n\n  return { weekNum, jsDay, label };\n}\n\n// ---------------- Transform ----------------\nconst items = $input.all();\nconst out = [];\n\nlet skippedNoMonth = 0;\nlet skippedNoSchedule = 0;\n\nfor (const item of items) {\n  const row = item.json || {};\n\n  const sheetMonthRaw = row[\"Month\"] ?? row[\"month\"] ?? \"\";\n  const sheetMonth = String(sheetMonthRaw).trim().toLowerCase();\n  if (!sheetMonth) { skippedNoMonth++; continue; }\n\n  const { weekNum, jsDay, label } = deriveWeekAndDay(row);\n\n  // Downstream match requires BOTH\n  if (weekNum == null || jsDay == null) { skippedNoSchedule++; continue; }\n\n  const phoneRaw = row[\"Phone\"] ?? row[\"phone\"] ?? \"\";\n  const phoneLocal = formatIrishMobileLocal(phoneRaw);\n\n  const fullName = row[\"Full Name\"] || \"\";\n  const lastName = row[\"Last Name\"] || \"\";\n  let firstName = \"\", lastNameFinal = lastName;\n\n  if (lastName) {\n    firstName = fullName.replace(lastName, \"\").trim();\n  } else if (fullName) {\n    const parts = fullName.split(\" \");\n    firstName = parts[0] || \"\";\n    lastNameFinal = parts.slice(1).join(\" \") || \"\";\n  }\n\n  const emailRaw = row[\"Email\"] ?? row[\"email\"] ?? row.Email ?? \"\";\n  const emailOrId = emailRaw || `no-email-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;\n\n  const zipOrEircode = row[\"Eircode\"] || row[\"eircode\"] || row[\"Zip\"] || row[\"zip\"] || \"\";\n\n  out.push({\n    json: {\n      source: \"google_sheets\",\n      email: emailOrId,\n      first_name: firstName,\n      last_name: lastNameFinal,\n      address_1: row[\"Address 1\"] || \"\",\n      address_2: row[\"Address 2\"] || row[\"Address\"] || \"\", // sheet shows \"Address\" column in your screenshot\n      city: row[\"City\"] || \"\",\n      province: row[\"Province\"] || \"\",\n      zip: zipOrEircode,\n      country: row[\"Country\"] || \"Ireland\",\n\n      phone: phoneLocal,\n      phone_raw: phoneRaw,\n\n      status: row[\"Status\"] || \"active\",\n      notes: row[\"Notes\"] || \"\",\n\n      collection_month: sheetMonth,         // keep for Filter Tomorrow node\n      collection_week: weekNum,             // keep numeric\n      collection_weekday_js: jsDay,\n      collection_day: label || \"No Schedule Match\"\n    }\n  });\n}\n\nconsole.log({\n  sheet_rows_in: items.length,\n  sheet_rows_out: out.length,\n  skippedNoMonth,\n  skippedNoSchedule\n});\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -10,
+        800
+      ],
+      "id": "draft-0086696a7b00",
+      "name": "Transform Google Sheets Data"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        200,
+        500
+      ],
+      "id": "draft-00c9ad14aa6b",
+      "name": "Merge All Sources"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format Irish mobile numbers into local \"08X XXX XXXX\" style\nfunction formatIrishMobileLocal(phone) {\n  if (!phone) return \"\";\n\n  let p = String(phone).trim();\n\n  // keep digits and +\n  p = p.replace(/[^\\d+]/g, \"\");\n\n  // normalize prefixes\n  if (p.startsWith(\"00\")) p = \"+\" + p.slice(2);\n  if (p.startsWith(\"353\") && !p.startsWith(\"+353\")) p = \"+\" + p;\n\n  // +353 -> local\n  if (p.startsWith(\"+353\")) {\n    let rest = p.slice(4); // after +353\n    if (rest.startsWith(\"0\")) rest = rest.slice(1);\n    return toLocalMobile(\"0\" + rest);\n  }\n\n  const d = p.replace(/[^\\d]/g, \"\");\n\n  // 08XXXXXXXXX -> local\n  if (/^08\\d{8}$/.test(d)) return toLocalMobile(d);\n\n  // 8XXXXXXXX -> add leading 0 then local\n  if (/^8\\d{8}$/.test(d)) return toLocalMobile(\"0\" + d);\n\n  // landlines etc -> leave as compact digits (no spaces)\n  if (/^0\\d{7,9}$/.test(d)) return d;\n\n  // intl without plus (353...) -> convert\n  if (/^353\\d{8,9}$/.test(d)) {\n    let rest = d.slice(3);\n    if (rest.startsWith(\"0\")) rest = rest.slice(1);\n    return toLocalMobile(\"0\" + rest);\n  }\n\n  return String(phone).trim();\n}\n\nfunction toLocalMobile(num10) {\n  // expect 10-digit mobile starting 08\n  if (!/^08\\d{8}$/.test(num10)) return num10;\n  return num10.slice(0,3) + \" \" + num10.slice(3,6) + \" \" + num10.slice(6);\n}\n\n// Normalise routing area_code from full eircode + optional city\n// Examples:\n//  \"D12 C424\" -> \"D12\"\n//  \"D12C424\"  -> \"D12\"\n//  \"A94 V403\" -> \"A94\"\n//  \"K78P123\"  -> \"K78\"\n//  city \"Wicklow\" -> \"WICKLOW\"\nfunction normalizeAreaCode(eircode, city) {\n  const raw = eircode || city;\n  if (!raw) return \"\";\n  let code = String(raw).trim().toUpperCase();\n  code = code.replace(/[\\s\\-\\.]/g, \"\");\n\n  // Wicklow by city keyword\n  if ((city || \"\").toUpperCase().includes(\"WICKLOW\")) return \"WICKLOW\";\n\n  // Dublin\n  if (code.startsWith(\"DUBLIN\")) code = code.replace(\"DUBLIN\", \"D\");\n  if (code.startsWith(\"D\")) {\n    if (code.startsWith(\"D6W\")) return \"D6W\";\n    const m = code.substring(0, 3).match(/^D(\\d{1,2})/);\n    if (m) return \"D\" + m[1].padStart(2, \"0\");\n  }\n\n  // A/K routing keys (A94F123 -> A94, K78P123 -> K78)\n  if (code.length >= 3 && /^[AK]\\d{2}/.test(code)) return code.substring(0, 3);\n\n  return \"\";\n}\n\n// --- Main ---\nconst out = [];\nfor (const item of $input.all()) {\n  const src = item.json || {};\n\n  // 1) Normalise phone\n  const rawPhone = src.phone || src.mobile || src.telephone || \"\";\n  const phone = formatIrishMobileLocal(rawPhone);\n\n  // 2) Full eircode (keep as given, cleaned) and area_code\n  const rawEir =\n    src.eircode ||\n    src.zip ||\n    src.postcode ||\n    src.post_code ||\n    \"\";\n  const eircode = rawEir ? String(rawEir).trim().toUpperCase() : \"\";\n  const area_code = normalizeAreaCode(eircode, src.city);\n\n  // 3) Build clean, ordered object\n  const r = {\n    email:      src.email || \"\",\n    first_name: src.first_name || \"\",\n    last_name:  src.last_name || \"\",\n    address_1:  src.address_1 || \"\",\n    address_2:  src.address_2 || \"\",\n    city:       src.city || \"\",\n    province:   src.province || \"\",\n    eircode,                 // full eircode\n    country:   src.country || \"\",\n    phone,                   // normalised phone\n    area_code                // routing key\n  };\n\n  // Remove any legacy fields you don't want downstream\n  // (we already don't include source/status/zip/etc. in r)\n\n  out.push({ json: r });\n}\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        500
+      ],
+      "id": "e6ec53e6-15cd-40fa-87f6-8502595052f7",
+      "name": "Normalize Phones & Area Code"
+    },
+    {
+      "parameters": {
+        "jsCode": "// One Code node that filters ALL inputs (subs + once-off sheet) for \"tomorrow\"\n// Pattern comes from Get Pattern HTTP node (pattern_only=1&days_ahead=1)\n\nconst pattern = $('Get Pattern').first().json;\n\n// Pattern: tomorrow\nconst week      = Number(pattern.week);      // 1..5\nconst weekday   = Number(pattern.weekday);   // 0..6\nconst dateStr   = pattern.date;              // \"YYYY-MM-DD\"\nconst label     = pattern.week_label;        // \"Third Tuesday\"\n\n// Month of tomorrow (lowercase, e.g. \"november\")\nlet monthNameLower = \"\";\nif (dateStr) {\n  const [y, m, d] = dateStr.split(\"-\").map(Number);\n  const dt = new Date(y, m - 1, d);\n  monthNameLower = dt\n    .toLocaleString(\"en-IE\", { month: \"long\" })\n    .toLowerCase();\n}\n\n// Area/province lists from pattern (for subs only)\nconst areaList = (pattern.area_codes || []).map(c => String(c).toUpperCase());\nconst provList = (pattern.province_codes || []).map(c => String(c).toUpperCase());\nconst areaSet  = new Set(areaList);\nconst provSet  = new Set(provList);\n\n// --- Helper: normalize area code from Eircode / ZIP ---\nfunction normalizeAreaCode(eircode) {\n  if (!eircode) return \"\";\n  let code = String(eircode).trim().toUpperCase();\n  code = code.replace(/[\\s\\-\\.]/g, \"\");\n\n  // \"DUBLIN 7\" / \"DUBLIN7\"\n  if (code.startsWith(\"DUBLIN\")) {\n    const n = code.slice(6).replace(/\\D/g, \"\");\n    if (n) return \"D\" + n.padStart(2, \"0\");\n  }\n\n  // Default: first 3 chars as routing key\n  if (code.length >= 3) return code.slice(0, 3);\n  return \"\";\n}\n\nconst out = [];\n\nfor (const item of $input.all()) {\n  const r = item.json || {};\n  const source = (r.source || \"\").toLowerCase();\n\n  const hasSheetSchedule =\n    r.collection_month != null ||\n    r.collection_week  != null ||\n    r.collection_weekday_js != null;\n\n  // =========================\n  // SHEET ONCE-OFF PATH (OVERRIDE)\n  // =========================\n  if (source === \"google_sheets\" || hasSheetSchedule) {\n    // Use sheet’s own schedule as override\n    const cmLower = (r.collection_month || \"\").toString().trim().toLowerCase();\n    const cw = r.collection_week != null ? Number(r.collection_week) : null;\n    const cd = r.collection_weekday_js != null ? Number(r.collection_weekday_js) : null;\n\n    const monthOk = cmLower === monthNameLower;\n    const weekOk  = cw != null && cw === week;\n    const dayOk   = cd != null && cd === weekday;\n\n    if (!monthOk || !weekOk || !dayOk) {\n      continue;\n    }\n\n    // Map zip -> eircode\n    const eircode = r.eircode || r.zip || r.Zip || \"\";\n\n    // Derive area_code from eircode if missing\n    let area_code = r.area_code || \"\";\n    if (!area_code && eircode) {\n      area_code = normalizeAreaCode(eircode);\n    }\n    const finalAreaCode = area_code || normalizeAreaCode(eircode);\n\n    out.push({\n      json: {\n        email:        r.email        || \"\",\n        first_name:   r.first_name   || \"\",\n        last_name:    r.last_name    || \"\",\n        address_1:    r.address_1    || \"\",\n        address_2:    r.address_2    || \"\",\n        city:         r.city         || \"\",\n        province:     r.province     || \"\",\n        eircode:      eircode,\n        country:      r.country      || \"Ireland\",\n        phone:        r.phone        || \"\",\n        area_code:    finalAreaCode || \"\",\n        collection_week:  week,\n        collection_day:   label,\n        collection_date:  dateStr,\n        match_type:   \"sheet\"\n      }\n    });\n\n    continue;\n  }\n\n  // =========================\n  // SUBSCRIBER PATH (Recharge/Woo/etc.)\n  // =========================\n  const prov = (r.province  || \"\").toUpperCase();\n  let area_code = (r.area_code || \"\").toUpperCase();\n\n  const rawEir = r.eircode || r.zip || r.Zip || \"\";\n  if (!area_code && rawEir) {\n    area_code = normalizeAreaCode(rawEir);\n  }\n\n  let matched = false;\n  let match_type = null;\n\n  if (areaSet.has(area_code)) {\n    matched = true;\n    match_type = \"eircode\";\n  } else if (provSet.has(prov)) {\n    matched = true;\n    match_type = \"province\";\n  }\n\n  if (matched) {\n    const eircode = rawEir;\n    const finalAreaCode = area_code || normalizeAreaCode(eircode);\n\n    out.push({\n      json: {\n        email:        r.email        || \"\",\n        first_name:   r.first_name   || \"\",\n        last_name:    r.last_name    || \"\",\n        address_1:    r.address_1    || \"\",\n        address_2:    r.address_2    || \"\",\n        city:         r.city         || \"\",\n        province:     r.province     || \"\",\n        eircode:      eircode,\n        country:      r.country      || \"Ireland\",\n        phone:        r.phone        || \"\",\n        area_code:    finalAreaCode || \"\",\n        collection_week:  week,\n        collection_day:   label,\n        collection_date:  dateStr,\n        match_type\n      }\n    });\n  }\n}\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        500
+      ],
+      "id": "draft-00a4b4cef0a2",
+      "name": "Filter Tomorrow's Collections"
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "fileFormat": "csv",
+        "options": {
+          "fileName": "=all_active_{{ new Date(new Date().getTime()).toISOString().split('T')[0] }}.csv"
+        }
+      },
+      "id": "d76012ef-3043-4b1b-bfad-01c441486bec",
+      "name": "Create CSV Report (All Active)",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [
+        600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "fileFormat": "csv",
+        "options": {
+          "fileName": "=tomorrows_collections_{{ new Date(new Date().getTime() + 24*60*60*1000).toISOString().split('T')[0] }}.csv"
+        }
+      },
+      "id": "99634f0e-630a-4d0f-952b-4556b4c6b775",
+      "name": "Create CSV Report (Tomorrow)",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [
+        800,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transform Collection Data to SmartRoutes Orders Format with Batching Support\n\nconst API_KEY = '716a82af-0bd6-47ff-92fc-fae38d578f0a';\nconst VEHICLE_ID = '2741'; // Your vehicle ID\n\n// ---------- Helpers ----------\n\n// Calculate tomorrow's date\nconst today = new Date();\nconst tomorrow = new Date(today);\ntomorrow.setDate(today.getDate() + 1);\n\nconst formatDate = (date) => {\n  const year = date.getFullYear();\n  const month = String(date.getMonth() + 1).padStart(2, '0');\n  const day = String(date.getDate()).padStart(2, '0');\n  return `${year}-${month}-${day}`;\n};\n\nconst tomorrowDate = formatDate(tomorrow);\n\n// Normalise Irish Eircode-style values\nfunction normalizeEircode(value) {\n  if (!value) return '';\n  let s = String(value).toUpperCase().trim();\n\n  // Remove spaces & non-alphanumerics\n  s = s.replace(/[^A-Z0-9]/g, '');\n\n  if (s.length <= 3) return s;\n\n  // Format as \"XXX XXXX\"\n  return s.slice(0, 3) + ' ' + s.slice(3);\n}\n\n// ---------- Main Transform ----------\n\nconst collections = $input.all();\nconsole.log(`Processing ${collections.length} collections for SmartRoutes`);\n\nconst orders = [];\nlet successCount = 0;\nlet errorCount = 0;\nlet zipcodeIssues = [];\nlet orderCounter = 1; // For unique order numbers\n\nfor (const collection of collections) {\n  const data = collection.json;\n\n  try {\n    // Build full name from first_name and last_name\n    const fullName = `${data.first_name || ''} ${data.last_name || ''}`.trim();\n\n    // Base address fields\n    const address1 = String(data.address_1 || '').trim();\n    const address2 = String(data.address_2 || '').trim();\n    const city = String(data.city || '').trim();\n    const province = String(data.province || '').trim();\n    const country = String(data.country || 'Ireland').trim();\n\n    // Primary postcode source: EIRCODE\n    const rawEircode =\n      (data.eircode || data.zip || data.original_zip || '').toString();\n    const eircode = normalizeEircode(rawEircode);\n\n    // Build complete address string for pickup_address (SmartRoutes requirement)\n    let pickupAddress = address1;\n    if (address2) pickupAddress += `, ${address2}`;\n    if (city) pickupAddress += `, ${city}`;\n    if (province) pickupAddress += `, ${province}`;\n    if (eircode) pickupAddress += `, ${eircode}`;\n    if (country && country !== 'Ireland') pickupAddress += `, ${country}`;\n\n    // Determine the source (default to 'google_sheets' if not provided)\n    const source = data.source\n      ? data.source.replace(/[^a-zA-Z0-9_\\-]/g, '').toLowerCase()\n      : 'google_sheets';\n\n    // Clean phone number (remove spaces)\n    const rawPhone = data.phone ? data.phone.toString() : '';\n    const cleanPhone = rawPhone.replace(/\\s/g, '');\n\n    // Use last 4 digits of phone as customer ID (still needed for SmartRoutes API)\n    const customerId =\n      cleanPhone.length >= 4\n        ? Number(cleanPhone.slice(-4))\n        : Number(cleanPhone) || Math.floor(Math.random() * 10000);\n\n    // Email\n    const email = data.email || '';\n\n    // --- Postcode logic ---\n\n    // Start with Eircode as postcode if present\n    let postcode = eircode;\n\n    // If still empty, attempt extraction from address (fallback)\n    if (!postcode) {\n      const addressMatch = pickupAddress.match(/[A-Z]\\d{1,2}\\s*[A-Z0-9]*/i);\n      if (addressMatch) {\n        postcode = addressMatch[0].toUpperCase();\n        console.log(`📮 Extracted postcode from address: ${postcode} for ${fullName}`);\n      } else {\n        // For Meath/Kildare routes, use a default based on province\n        if (province) {\n          const provinceUpper = province.toUpperCase();\n          if (provinceUpper === 'MEATH' || provinceUpper === 'MH') {\n            postcode = 'MEATH';\n          } else if (provinceUpper === 'KILDARE' || provinceUpper === 'KE') {\n            postcode = 'KILDARE';\n          }\n        }\n\n        if (postcode) {\n          console.log(\n            `📮 Using province-based postcode: ${postcode} for ${fullName} (${province})`\n          );\n        } else {\n          postcode = 'UNKNOWN';\n          console.log(`⚠️  No postcode found for ${fullName} - using 'UNKNOWN'`);\n        }\n      }\n    }\n\n    // Log postcode information for debugging\n    console.log(\n      `📮 Postcode for ${fullName}: \"${postcode}\" (eircode: \"${rawEircode}\", province: \"${province}\")`\n    );\n\n    // Track postcode issues: no original postcode at all\n    if (!rawEircode) {\n      zipcodeIssues.push({\n        name: fullName,\n        email: data.email,\n        source: source,\n        address: pickupAddress,\n        province: province,\n        assigned_postcode: postcode,\n      });\n    }\n\n    // Skip if missing essential data\n    if (!fullName || !address1 || !cleanPhone) {\n      console.log(\n        `⚠️  Skipping incomplete record: ${fullName} - missing essential data`\n      );\n      errorCount++;\n      continue;\n    }\n\n    // Generate unique order number with timestamp and counter\n    const timestamp = Date.now();\n    const orderNumber = `COLL-${tomorrowDate}-${orderCounter}-${timestamp}`;\n    orderCounter++;\n\n    // Create SmartRoutes order\n    const order = {\n      order_number: orderNumber,\n      type: 'pickup', // Collection = pickup in SmartRoutes\n\n      // Customer object\n      customer: {\n        id: customerId,\n        account: `CUST-${customerId}`,\n        name: fullName,\n        phone: cleanPhone,\n        email: email,\n        postcode: postcode,\n        country_code: 'IE',\n      },\n\n      // Required delivery fields (even for pickup orders)\n      delivery_address: pickupAddress,\n      delivery_contact_name: fullName,\n      delivery_contact_number: cleanPhone,\n      delivery_contact_email: email,\n      delivery_date: tomorrowDate,\n      delivery_postcode: postcode,\n      delivery_country_code: 'IE',\n\n      // Pickup fields\n      pickup_address: pickupAddress,\n      pickup_contact_name: fullName,\n      pickup_contact_number: cleanPhone,\n      pickup_contact_email: email,\n      pickup_date: tomorrowDate,\n      pickup_postcode: postcode,\n      pickup_country_code: 'IE',\n      pickup_time_windows: [\n        {\n          from: '07:00',\n          to: '20:00',\n        },\n      ],\n      pickup_notes: `Glass collection - leave bag outside and accessible. Source: ${source}. Postcode: ${postcode}`,\n\n      // Assign to your vehicle\n      vehicle_id: VEHICLE_ID,\n    };\n\n    orders.push(order);\n    successCount++;\n\n    console.log(\n      `✅ Processed: ${fullName} at ${pickupAddress} (Order: ${orderNumber}, Email: ${\n        email || 'no-email'\n      })`\n    );\n  } catch (error) {\n    errorCount++;\n    const name = `${data.first_name || ''} ${data.last_name || ''}`.trim() || 'Unknown';\n    console.log(`❌ Error processing ${name}: ${error.message}`);\n  }\n}\n\n// ---------- Batching ----------\n\nconst maxOrdersPerBatch = 100;\nconst totalOrders = orders.length;\nconst batches = [];\n\nif (totalOrders <= maxOrdersPerBatch) {\n  batches.push(orders);\n} else {\n  for (let i = 0; i < totalOrders; i += maxOrdersPerBatch) {\n    batches.push(orders.slice(i, i + maxOrdersPerBatch));\n  }\n}\n\nconsole.log(`\\n📊 Transform Summary:`);\nconsole.log(`   ✅ Successful: ${successCount}`);\nconsole.log(`   ❌ Errors: ${errorCount}`);\nconsole.log(`   📦 Total orders: ${totalOrders}`);\nconsole.log(`   📋 Batches required: ${batches.length}`);\nconsole.log(`   📅 Collection Date: ${tomorrowDate}`);\nconsole.log(`   🚛 Vehicle ID: ${VEHICLE_ID}`);\n\nif (zipcodeIssues.length > 0) {\n  console.log(`\\n📮 POSTCODE ISSUES SUMMARY:`);\n  console.log(\n    `Found ${zipcodeIssues.length} records with missing original postcodes/Eircodes:`\n  );\n  zipcodeIssues.forEach((issue) => {\n    console.log(\n      `   - ${issue.name} (${issue.email}) - Source: ${issue.source} - Assigned: ${issue.assigned_postcode}`\n    );\n  });\n} else {\n  console.log(`\\n✅ All records had original postcodes/Eircodes`);\n}\n\n// ---------- Return payload ----------\n\nconst firstBatch = batches[0] || [];\nconst remainingBatches = batches.slice(1);\n\nreturn [\n  {\n    json: {\n      orders: firstBatch,\n      metadata: {\n        collection_date: tomorrowDate,\n        total_orders: totalOrders,\n        total_processed: orders.length,\n        duplicates_removed: 0,\n        batches_required: batches.length,\n        current_batch: 1,\n        remaining_batches: remainingBatches.length,\n        vehicle_id: VEHICLE_ID,\n        api_key: API_KEY,\n        success_count: successCount,\n        error_count: errorCount,\n        zipcode_issues_count: zipcodeIssues.length,\n      },\n      remaining_batches: remainingBatches,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        600
+      ],
+      "id": "draft-0008193803a0",
+      "name": "Transform to SmartRoutes Format"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.smartroutes.io/v2/orders",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-access-key",
+              "value": "={{ $json.metadata.api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ($json.orders) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "3123c6ee-5d28-4ce3-bb04-5c34bf25a84b",
+      "name": "Create Orders in SmartRoutes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1000,
+        600
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process SmartRoutes response and prepare optimization payload\nconst allInputItems = $input.all();\nlet createdOrders = [];\nlet errors = [];\n\nfor (const item of allInputItems) {\n  const json = item.json;\n  if (json.orders) {\n    createdOrders.push(...(json.orders || []));\n    errors.push(...(json.errors || []));\n  }\n}\n\n// Get metadata from Transform node\nconst transformData = $('Transform to SmartRoutes Format').first().json;\nconst apiKey = transformData.metadata?.api_key;\nconst collectionDate = transformData.metadata?.collection_date;\nconst orderIds = createdOrders.map(order => parseInt(order.id));\n\nconsole.log(`✅ ${orderIds.length} orders created. Preparing optimization.`);\n\nreturn [{\n  json: {\n    order_ids: orderIds,\n    collection_date: collectionDate,\n    metadata: { api_key: apiKey, collection_date: collectionDate }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        600
+      ],
+      "id": "draft-0026a32e334a",
+      "name": "Process Orders & Prepare Optimization"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.smartroutes.io/v2/plans/optimise/orders",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-access-key",
+              "value": "={{ $json.metadata.api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "delivery_date",
+              "value": "={{ $json.metadata.collection_date }}"
+            },
+            {
+              "name": "order_ids",
+              "value": "={{ JSON.stringify($json.order_ids) }}"
+            },
+            {
+              "name": "settings",
+              "value": "={{ { \"active_vehicles\": true, \"auto_dispatch\": true } }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "f4a299be-cc2d-487a-97e3-49d57b7675fd",
+      "name": "Optimize Routes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1400,
+        600
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process optimization response + check readiness (merged If Ready check)\nconst optimizeResponse = $input.first();\nconst payloadData = $('Process Orders & Prepare Optimization').first().json;\n\nlet optimizationId = null;\nlet planId = null;\n\nif (optimizeResponse.json && optimizeResponse.json.optimisation) {\n    optimizationId = optimizeResponse.json.optimisation.id;\n    planId = optimizeResponse.json.plan?.id;\n    console.log(`Route Optimization Started`);\n    console.log(`  Optimization ID: ${optimizationId}, Plan ID: ${planId}`);\n    console.log(`  Total Orders: ${payloadData.order_ids ? payloadData.order_ids.length : 0}`);\n} else {\n    console.log('Route optimization failed');\n    console.log('Response:', JSON.stringify(optimizeResponse.json, null, 2));\n}\n\nconst collectionDateStr = payloadData.collection_date || payloadData.metadata?.collection_date;\nlet notificationTimeUTC = null;\n\nif (collectionDateStr) {\n    const collectionDate = new Date(collectionDateStr);\n    const notificationDate = new Date(collectionDate);\n    notificationDate.setDate(collectionDate.getDate() - 1);\n    notificationDate.setHours(18, 30, 0, 0);\n    notificationTimeUTC = notificationDate.toISOString().replace('T', ' ').substring(0, 19);\n}\n\nconst ready = (payloadData.order_ids && payloadData.order_ids.length > 0 && optimizationId != null);\n\nif (!ready) {\n    console.log('Not ready for notifications — stopping pipeline');\n    return [];\n}\n\nreturn [{\n    json: {\n        optimization_id: optimizationId,\n        plan_id: planId,\n        order_ids: payloadData.order_ids || [],\n        collection_date: collectionDateStr,\n        notification_time_utc: notificationTimeUTC,\n        metadata: {\n            ...payloadData.metadata,\n            total_orders_final: payloadData.order_ids ? payloadData.order_ids.length : 0,\n        }\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        600
+      ],
+      "id": "draft-0072b9377127",
+      "name": "Process Optimization Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare Notifications for SmartRoutes (SMS + Email) + readiness check\nconst notificationData = $('Process Optimization Response').first().json;\n\nconst smsTemplateId = 86;\nconst emailTemplateId = 1437;\n\nconst orderIds = notificationData.order_ids || [];\nconst sendTimeUtc = notificationData.notification_time_utc;\n\nconst ready = orderIds.length > 0 && !!sendTimeUtc;\n\nif (!ready) {\n    console.log('Not ready to schedule notifications — stopping pipeline');\n    return [];\n}\n\nconst smsRequest = {\n  orders: orderIds,\n  templates: [smsTemplateId],\n  send_time_utc: sendTimeUtc,\n};\n\nconst emailRequest = {\n  orders: orderIds,\n  templates: [emailTemplateId],\n  send_time_utc: sendTimeUtc,\n};\n\nreturn [{\n  json: {\n    sms_notification_request: smsRequest,\n    email_notification_request: emailRequest,\n    template_ids: { sms: smsTemplateId, email: emailTemplateId },\n    metadata: notificationData.metadata,\n    summary: {\n      collection_date: notificationData.collection_date,\n      notification_time: sendTimeUtc,\n      orders_count: orderIds.length,\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        500
+      ],
+      "id": "draft-00308f5662e5",
+      "name": "Prepare Notifications"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.smartroutes.io/v2/notifications/schedule/orders",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-access-key",
+              "value": "={{ $json.metadata.api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.sms_notification_request}}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "0a88f1c7-6ecb-4309-aa7e-81636f78120e",
+      "name": "Schedule SMS Notifications",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2600,
+        400
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.smartroutes.io/v2/notifications/schedule/orders",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-access-key",
+              "value": "={{ $json.metadata.api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.email_notification_request}}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "40d64f26-cee5-4418-a56b-008a089b1f26",
+      "name": "Schedule Email Notifications",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2600,
+        600
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate notification results + build HTML summary email\nconst prep = $('Prepare Notifications').first().json;\nconst smsResp = $('Schedule SMS Notifications').first().json || {};\nconst emailResp = $('Schedule Email Notifications').first().json || {};\n\nconst smsNotifs = Array.isArray(smsResp.notifications) ? smsResp.notifications : [];\nconst smsErrors = Array.isArray(smsResp.errors) ? smsResp.errors : [];\nconst emailNotifs = Array.isArray(emailResp.notifications) ? emailResp.notifications : [];\nconst emailErrors = Array.isArray(emailResp.errors) ? emailResp.errors : [];\n\nconst smsTemplateId = prep.template_ids?.sms ?? 86;\nconst emailTemplateId = prep.template_ids?.email ?? 1437;\n\nconst collectionDate = prep.summary.collection_date || \"unknown-date\";\nconst notifyTime = prep.summary.notification_time || \"unknown-time\";\nconst ordersTotal = prep.summary.orders_count ?? 0;\n\nconst nextSteps = [\n  \"Collection orders created in SmartRoutes\",\n  \"Routes optimized for tomorrow\",\n  smsNotifs.length > 0 ? smsNotifs.length + \" SMS notifications scheduled\" : \"Check SMS template/config\",\n  emailNotifs.length > 0 ? emailNotifs.length + \" email notifications scheduled\" : \"Check email template/config\",\n  \"Collection route ready in SmartRoutes dashboard\",\n];\n\nconst subject = `GlassBag \\u2013 SmartRoutes Summary \\u2013 ${collectionDate}`;\n\nconst html = `\n<div style=\"font-family: Arial, sans-serif; max-width: 720px; margin: 0 auto; color: #111; line-height: 1.4;\">\n  <h2 style=\"margin: 0 0 12px;\">SmartRoutes Daily Summary</h2>\n  <table style=\"width: 100%; border-collapse: collapse; margin: 10px 0 18px;\">\n    <tr><td style=\"padding: 8px 10px; border: 1px solid #ddd; width: 40%; background: #fafafa;\">Collection date</td><td style=\"padding: 8px 10px; border: 1px solid #ddd;\">${collectionDate}</td></tr>\n    <tr><td style=\"padding: 8px 10px; border: 1px solid #ddd; background: #fafafa;\">Notification time (UTC)</td><td style=\"padding: 8px 10px; border: 1px solid #ddd;\">${notifyTime}</td></tr>\n    <tr><td style=\"padding: 8px 10px; border: 1px solid #ddd; background: #fafafa;\">Orders processed</td><td style=\"padding: 8px 10px; border: 1px solid #ddd;\">${ordersTotal}</td></tr>\n  </table>\n  <h3 style=\"margin: 0 0 10px;\">Notifications</h3>\n  <table style=\"width: 100%; border-collapse: collapse; margin: 10px 0 18px;\">\n    <tr><th style=\"text-align:left; padding: 8px 10px; border: 1px solid #ddd; background: #f3f3f3;\">Channel</th><th style=\"text-align:right; padding: 8px 10px; border: 1px solid #ddd; background: #f3f3f3;\">Scheduled</th><th style=\"text-align:right; padding: 8px 10px; border: 1px solid #ddd; background: #f3f3f3;\">Errors</th></tr>\n    <tr><td style=\"padding: 8px 10px; border: 1px solid #ddd;\">SMS</td><td style=\"text-align:right; padding: 8px 10px; border: 1px solid #ddd;\">${smsNotifs.length}</td><td style=\"text-align:right; padding: 8px 10px; border: 1px solid #ddd;\">${smsErrors.length}</td></tr>\n    <tr><td style=\"padding: 8px 10px; border: 1px solid #ddd;\">Email</td><td style=\"text-align:right; padding: 8px 10px; border: 1px solid #ddd;\">${emailNotifs.length}</td><td style=\"text-align:right; padding: 8px 10px; border: 1px solid #ddd;\">${emailErrors.length}</td></tr>\n  </table>\n  <h3 style=\"margin: 0 0 10px;\">Next steps</h3>\n  <ul style=\"margin: 0; padding-left: 18px;\">\n    ${nextSteps.map(x => '<li style=\"margin: 4px 0;\">' + String(x) + '</li>').join(\"\")}\n  </ul>\n  <p style=\"margin: 18px 0 0; color: #444;\">CSV attached: tomorrow's collections export.</p>\n</div>`;\n\nreturn [{\n  json: {\n    status: \"completed\",\n    collection_date: collectionDate,\n    notification_time: notifyTime,\n    orders: { total_processed: ordersTotal, created_successfully: ordersTotal },\n    notifications: {\n      sms: { template_id: smsTemplateId, scheduled: smsNotifs.length, errors: smsErrors.length },\n      email: { template_id: emailTemplateId, scheduled: emailNotifs.length, errors: emailErrors.length },\n    },\n    next_steps: nextSteps,\n    email_subject: subject,\n    email_body_html: html,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2800,
+        500
+      ],
+      "id": "draft-002a8ccf1413",
+      "name": "Build Summary & Email"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3200,
+        450
+      ],
+      "id": "draft-00b22f1532fd",
+      "name": "Merge CSV And Email"
+    },
+    {
+      "parameters": {
+        "sendTo": "mark@glassbag.ie, david@glassbag.ie",
+        "subject": "={{ $json.email_subject }}",
+        "message": "={{ $json.email_body_html }}",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "=data"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3400,
+        400
+      ],
+      "id": "810b502b-9236-4f21-913a-700105651f1f",
+      "name": "Send Summary Email",
+      "webhookId": "bffb26fa-acb4-417e-9ca9-88bd2bedce4f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6lB6mgLBMfvG3wjl",
+          "name": "Gmail account: info@glassbag.ie"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        500,
+        700
+      ],
+      "id": "draft-merge-with-pattern",
+      "name": "Merge With Pattern"
+    }
+  ],
+  "connections": {
+    "Daily Schedule": {
+      "main": [
+        [
+          {
+            "node": "Get Pattern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get Pattern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch WC Active": {
+      "main": [
+        [
+          {
+            "node": "Merge WC Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch WC Pending-Cancel": {
+      "main": [
+        [
+          {
+            "node": "Merge WC Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge WC Sources": {
+      "main": [
+        [
+          {
+            "node": "Transform WooCommerce Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All ReCharge Charges": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Fetch Once-Off Orders": {
+      "main": [
+        [
+          {
+            "node": "Transform Google Sheets Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform WooCommerce Data": {
+      "main": [
+        [
+          {
+            "node": "Merge All Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform Google Sheets Data": {
+      "main": [
+        [
+          {
+            "node": "Merge With Pattern",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge All Sources": {
+      "main": [
+        [
+          {
+            "node": "Normalize Phones & Area Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Phones & Area Code": {
+      "main": [
+        [
+          {
+            "node": "Create CSV Report (All Active)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge With Pattern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Tomorrow's Collections": {
+      "main": [
+        [
+          {
+            "node": "Create CSV Report (Tomorrow)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Transform to SmartRoutes Format",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform to SmartRoutes Format": {
+      "main": [
+        [
+          {
+            "node": "Create Orders in SmartRoutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Orders in SmartRoutes": {
+      "main": [
+        [
+          {
+            "node": "Process Orders & Prepare Optimization",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Orders & Prepare Optimization": {
+      "main": [
+        [
+          {
+            "node": "Optimize Routes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Optimize Routes": {
+      "main": [
+        [
+          {
+            "node": "Process Optimization Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Optimization Response": {
+      "main": [
+        [
+          {
+            "node": "Prepare Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Notifications": {
+      "main": [
+        [
+          {
+            "node": "Schedule SMS Notifications",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Schedule Email Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule SMS Notifications": {
+      "main": [
+        [
+          {
+            "node": "Build Summary & Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Email Notifications": {
+      "main": [
+        [
+          {
+            "node": "Build Summary & Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create CSV Report (Tomorrow)": {
+      "main": [
+        [
+          {
+            "node": "Merge CSV And Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge CSV And Email": {
+      "main": [
+        [
+          {
+            "node": "Send Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pattern": {
+      "main": [
+        [
+          {
+            "node": "Fetch WC Active",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch WC Pending-Cancel",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch All ReCharge Charges",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Once-Off Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge With Pattern": {
+      "main": [
+        [
+          {
+            "node": "Filter Tomorrow's Collections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Summary & Email": {
+      "main": [
+        [
+          {
+            "node": "Merge CSV And Email",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

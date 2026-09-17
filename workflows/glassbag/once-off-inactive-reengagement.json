@@ -1,0 +1,1006 @@
+{
+  "_meta": {
+    "n8n_id": "0zznUUxrSocIzqQm",
+    "pulled_at": "2026-02-23T02:24:46Z",
+    "description": "GlassBag.ie: Once-Off & Inactive Subscriber Re-engagement"
+  },
+  "name": "GlassBag.ie: Once-Off & Inactive Subscriber Re-engagement",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                3
+              ],
+              "triggerAtHour": 9,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -48,
+        -432
+      ],
+      "id": "0449b6bf-769c-4d90-a1e5-f3f66e073033",
+      "name": "Schedule Trigger (Sunday 9:30am)"
+    },
+    {
+      "parameters": {
+        "url": "https://gbr-api.vercel.app/api/once-off-collection-reminders?limit=5000",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        176,
+        -432
+      ],
+      "id": "8c646052-f189-40a1-b9a4-9dd0828d49f5",
+      "name": "Fetch Once-Off Customers"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "customers",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        400,
+        -544
+      ],
+      "id": "2340ee86-c8f8-465b-acca-91f15d7c470b",
+      "name": "Split Out Customers"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw",
+          "mode": "list",
+          "cachedResultName": "N8N - ONCE OFF SHEET",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1587265390,
+          "mode": "list",
+          "cachedResultName": "N8n - Once-Off Automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit#gid=1587265390"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        400,
+        -272
+      ],
+      "id": "3d5f6376-a74c-4a61-9e44-2b0343af70b5",
+      "name": "Read All Sent Emails",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Check if we should send email (60-day rule) ===\n// Input 1: Customers from Split Out\n// Input 2: All rows from Google Sheet (sent email history)\n\nconst customers = $('Split Out Customers').all();\nconst sheetRows = $('Read All Sent Emails').all();\n\n// Build a map of email -> last sent date from sheet\nconst emailHistory = {};\nfor (const row of sheetRows) {\n  const email = String(row.json.Email || row.json.email || '').trim().toLowerCase();\n  const lastSent = row.json['Last Email Sent Date'] || row.json.last_email_sent_date || null;\n  if (email && lastSent) {\n    emailHistory[email] = lastSent;\n  }\n}\n\nconst today = new Date();\nconst sixtyDaysAgo = new Date(today);\nsixtyDaysAgo.setDate(today.getDate() - 60);\n\nconst output = [];\n\nfor (const item of customers) {\n  const c = item.json || {};\n  const email = String(c.email || '').trim().toLowerCase();\n  \n  if (!email) continue; // Skip if no email\n  \n  const lastSentStr = emailHistory[email] || null;\n  let shouldSendEmail = false;\n  \n  if (!lastSentStr) {\n    // Never emailed before\n    shouldSendEmail = true;\n  } else {\n    const lastSentDate = new Date(lastSentStr);\n    if (!isNaN(lastSentDate.getTime()) && lastSentDate < sixtyDaysAgo) {\n      shouldSendEmail = true;\n    }\n  }\n  \n  if (shouldSendEmail) {\n    output.push({\n      json: {\n        ...c,\n        lastEmailDate: lastSentStr || null\n      }\n    });\n  }\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        -384
+      ],
+      "id": "7977561e-8aec-4f91-8f19-cd54b7469ffa",
+      "name": "Filter: 60-Day Rule"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Build Email HTML for Once-Off Collection Reminder ===\n\nconst items = $input.all();\nconst output = [];\n\nfor (const item of items) {\n  const c = item.json || {};\n  \n  // Extract fields\n  const email = String(c.email || '').trim();\n  \n  // Eircode: First 3 digits only\n  const fullEircode = String(c.eircode || '').trim();\n  const eircode = fullEircode.substring(0, 3); \n  \n  const collectionDate = String(c.collection_date || '').trim();\n  const collectionDay = String(c.collection_day || '').trim();\n  const collectionWeekLabel = String(c.collection_week_label || '').trim();\n  const firstName = String(c.first_name || '').trim() || 'there';\n  \n  // Skip if no email\n  if (!email) continue;\n\n  // Format collection date\n  let formattedCollectionDate = '';\n  if (collectionDate) {\n    try {\n      const dateStr = /^\\d{4}-\\d{2}-\\d{2}$/.test(collectionDate)\n        ? collectionDate + 'T12:00:00Z'\n        : collectionDate;\n      const d = new Date(dateStr);\n      if (!isNaN(d.getTime())) {\n        formattedCollectionDate = d.toLocaleDateString('en-IE', {\n          weekday: 'long',\n          year: 'numeric',\n          month: 'long',\n          day: 'numeric'\n        });\n      } else {\n        formattedCollectionDate = collectionDate;\n      }\n    } catch (e) {\n      formattedCollectionDate = collectionDate;\n    }\n  }\n\n  // Subject\n  const subject = collectionDay\n    ? 'Glass Collection In Your Area - This ' + collectionDay\n    : 'Glass Collection In Your Area - This Week';\n\n  // Event block\n  const eventBlock = '<p style=\"margin:0 0 18px;\">Hi ' + firstName + ',</p>' +\n    '<p style=\"margin:0 0 18px;\">We\\'re collecting glass in your area <strong>' + (eircode || 'this week') + '</strong>. Since you\\'ve booked a once-off collection before, you can easily book again.</p>' +\n    '<div style=\"background:#e8f5e8;padding:15px;border-left:4px solid #28a745;margin:20px 0;border-radius:4px;\">' +\n    '<h3 style=\"color:#28a745;margin:0 0 10px 0;\">Collection Details</h3>' +\n    '<p style=\"margin:5px 0;\"><strong>Next Collection:</strong> ' + (formattedCollectionDate || collectionDate || 'This week') + (collectionDay ? ' (' + collectionDay + ')' : '') + '</p>' +\n    (collectionWeekLabel ? '<p style=\"margin:5px 0;\"><strong>Collection Week:</strong> ' + collectionWeekLabel + '</p>' : '') +\n    '<p style=\"margin:5px 0;\"><strong>Booking Deadline:</strong> Before 12pm the day before your collection</p>' +\n    '</div>' +\n    '<div style=\"background:#fff3cd;padding:15px;border-left:4px solid #ffc107;margin:20px 0;border-radius:4px;\">' +\n    '<h3 style=\"color:#856404;margin:0 0 10px 0;\">Already Placed an Order?</h3>' +\n    '<p style=\"margin:5px 0;\">If you have already placed an order for this upcoming collection, you don\\'t need to do anything.</p>' +\n    '</div>' +\n    '<div style=\"text-align:center;margin:24px 0;\">' +\n    '<a href=\"https://glassbag.ie/pages/pricing-page\" style=\"display:inline-block;padding:12px 18px;background:#28a745;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600;margin:6px;\">Book Your Collection</a>' +\n    '<a href=\"https://glassbag.ie/pages/glass-bag-collections-monthly-calendar\" style=\"display:inline-block;padding:12px 18px;background:#28a745;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600;margin:6px;\">View Collection Calendar</a>' +\n    '</div>';\n\n  // Full HTML\n  const html = '<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Update from GlassBag.ie</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"></head>' +\n    '<body style=\"margin:0;padding:0;background:#f5f7fa;font-family:Arial,Helvetica,sans-serif;\">' +\n    '<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f5f7fa;padding:20px 0;\"><tr><td align=\"center\">' +\n    '<table role=\"presentation\" width=\"700\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.06);\">' +\n    '<tr><td style=\"padding:0;\"><img src=\"http://cdn.mcauto-images-production.sendgrid.net/2310dfbf22c43279/f315f15e-c7c1-4398-b0e4-a636000951d8/560x102.jpg\" alt=\"GlassBag.ie\" width=\"700\" style=\"display:block;width:100%;max-width:700px;border:0;\"></td></tr>' +\n    '<tr><td style=\"padding:0;\"><img src=\"http://cdn.mcauto-images-production.sendgrid.net/2310dfbf22c43279/47c1ab63-dc58-4a82-bec9-2e52aa8deaa0/2048x902.png\" alt=\"Glass collection\" width=\"700\" style=\"display:block;width:100%;max-width:700px;border:0;\"></td></tr>' +\n    '<tr><td style=\"background:#28a745;color:#fff;text-align:center;padding:24px 32px;\"><h1 style=\"margin:0;font-size:24px;font-weight:600;\">Your Glass Collection is Coming</h1><p style=\"margin:4px 0 0;font-size:16px;\">A quick reminder before this week\\'s collection</p></td></tr>' +\n    '<tr><td style=\"padding:32px;color:#333;font-size:16px;line-height:24px;\">' + eventBlock +\n    '<h2 style=\"margin:24px 0 12px;font-size:20px;color:#28a745;\">Check your collection dates</h2>' +\n    '<p style=\"margin:0 0 12px;\">Our online calendar is the main source of truth for your collection schedule.</p>' +\n    '<p style=\"margin:0 0 12px;\"><a href=\"https://glassbag.ie/pages/glass-bag-collections-monthly-calendar\" style=\"color:#28a745;text-decoration:none;\">glassbag.ie/pages/glass-bag-collections-monthly-calendar</a></p>' +\n    '<h2 style=\"margin:24px 0 12px;font-size:20px;color:#28a745;\">Text reminders</h2>' +\n    '<p style=\"margin:0 0 12px;\">We send SMS reminders at 6:30pm the evening before and 30 minutes before collection.</p>' +\n    '<p style=\"margin:0 0 4px;\">Thanks for recycling with us.</p>' +\n    '<p style=\"margin:0;\"><strong>David and Mark</strong><br><em>The GlassBag Team</em></p>' +\n    '</td></tr>' +\n    '<tr><td style=\"padding:0 32px;\"><hr style=\"border:none;border-top:1px solid #e0e0e0;margin:0;\"></td></tr>' +\n    '<tr><td style=\"padding:24px 32px 8px;font-size:16px;color:#333;\" align=\"center\">' +\n    '<img src=\"https://gosimple-media.lon1.cdn.digitaloceanspaces.com/GoSimple%20Logo-01%20(3).png\" width=\"200\" style=\"display:block;margin:0 auto 12px;border:0;\">' +\n    '<h2 style=\"margin:0 0 8px;font-size:20px;color:#007bff;text-align:center;\">Need work done around the house?</h2>' +\n    '<p style=\"margin:0 0 12px;text-align:center;\">Try <strong>GoSimple.ie</strong> for power washing, gutters, windows and more.</p>' +\n    '<a href=\"https://gosimple.ie\" style=\"display:inline-block;padding:10px 18px;background:#007bff;color:#fff;text-decoration:none;border-radius:4px;font-size:14px;\">Visit GoSimple.ie</a>' +\n    '</td></tr>' +\n    '<tr><td style=\"padding:24px 32px 24px;font-size:16px;color:#333;\" align=\"center\">' +\n    '<img src=\"https://gosimple-media.lon1.cdn.digitaloceanspaces.com/GlassBag/JunkIreland.com%20Logo\" width=\"220\" style=\"display:block;margin:0 auto 12px;border:0;\">' +\n    '<h2 style=\"margin:0 0 8px;font-size:20px;text-align:center;\">Need junk removed?</h2>' +\n    '<p style=\"margin:0 0 10px;text-align:center;\"><strong>JunkIreland.com</strong> handles the heavy lifting.</p>' +\n    '<a href=\"https://junkireland.com\" style=\"display:inline-block;padding:10px 18px;background:#222;color:#fff;text-decoration:none;border-radius:4px;font-size:14px;\">Book Junk Removal</a>' +\n    '</td></tr>' +\n    '' +\n    '<tr><td style=\"background:#f0f0f0;padding:16px;text-align:center;font-size:12px;color:#444;\">' +\n    '<p style=\"margin:0 0 8px;\">GlassBag, Dublin, Ireland</p>' +\n    '<p style=\"margin:0;\"><a href=\"{{{unsubscribe}}}\" style=\"color:#444;\">Unsubscribe</a> - <a href=\"{{{unsubscribe_preferences}}}\" style=\"color:#444;\">Preferences</a></p>' +\n    '</td></tr>' +\n    '</table></td></tr></table></body></html>';\n\n  // Plain text version (important for deliverability)\n  const text = 'Hi ' + firstName + ',\\n\\n' +\n    'We\\'re collecting glass in your area (' + (eircode || 'your area') + ') this week.\\n\\n' +\n    'Next Collection: ' + (formattedCollectionDate || collectionDate || 'This week') + (collectionDay ? ' (' + collectionDay + ')' : '') + '\\n\\n' +\n    'Book: https://glassbag.ie/pages/pricing-page\\n' +\n    'Calendar: https://glassbag.ie/pages/glass-bag-collections-monthly-calendar\\n\\n' +\n    'To unsubscribe, click here: {{{unsubscribe}}}\\n\\n' +\n    'David and Mark\\nThe GlassBag Team';\n\n  output.push({\n    json: {\n      shopify_customer_id: c.shopify_customer_id,\n      email: email,\n      first_name: c.first_name,\n      last_name: c.last_name,\n      phone: c.phone,\n      eircode: eircode,\n      collection_date: collectionDate,\n      collection_day: collectionDay,\n      collection_week_label: collectionWeekLabel,\n      days_until_collection: c.days_until_collection,\n      email_to: email,\n      email_subject: subject,\n      email_html: html,\n      email_text: text,\n      firstName: firstName,\n      formattedCollectionDate: formattedCollectionDate\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        -384
+      ],
+      "id": "b8c2c01c-089c-4f1a-afbb-6846cc78d8aa",
+      "name": "Build Email HTML"
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "info@glassbag.ie",
+        "fromName": "GlassBag",
+        "toEmail": "={{ $json.email_to }}",
+        "subject": "={{ $json.email_subject }}",
+        "contentType": "text/html",
+        "contentValue": "={{ $json.email_html }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [
+        1232,
+        -496
+      ],
+      "id": "bacc5bf6-e7c5-40f3-955b-81fecfd94395",
+      "name": "Send Email",
+      "credentials": {
+        "sendGridApi": {
+          "id": "jdtWfQv2UFn0pPYG",
+          "name": "SendGrid account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw",
+          "mode": "list",
+          "cachedResultName": "N8N - ONCE OFF SHEET",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1587265390,
+          "mode": "list",
+          "cachedResultName": "N8n - Once-Off Automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit#gid=1587265390"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $json.email }}",
+            "First Name": "={{ $json.first_name }}",
+            "Last Name": "={{ $json.last_name }}",
+            "Eircode": "={{ $json.eircode }}",
+            "Collection Date": "={{ $json.collection_date }}",
+            "Collection Day": "={{ $json.collection_day }}",
+            "Last Email Sent Date": "={{ $now.toISO() }}",
+            "Shopify Customer ID": "={{ $json.shopify_customer_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "First Name",
+              "displayName": "First Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Name",
+              "displayName": "Last Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Eircode",
+              "displayName": "Eircode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Collection Date",
+              "displayName": "Collection Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Collection Day",
+              "displayName": "Collection Day",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Email Sent Date",
+              "displayName": "Last Email Sent Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Shopify Customer ID",
+              "displayName": "Shopify Customer ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1232,
+        -272
+      ],
+      "id": "c5a7b506-36c1-451b-9d0b-b5582e39d749",
+      "name": "Log Sent Email",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        608,
+        -384
+      ],
+      "id": "39f3ed74-452a-4dff-bc8d-775027480ee5",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                3
+              ],
+              "triggerAtHour": 10,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -48,
+        224
+      ],
+      "id": "39a17928-3134-4806-8ce1-cc45491da09d",
+      "name": "Schedule Trigger (Sunday 10:00am)"
+    },
+    {
+      "parameters": {
+        "url": "https://gbr-api.vercel.app/api/inactive-subscriber-reminders?limit=5000",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        176,
+        224
+      ],
+      "id": "109204bf-2dec-44f6-b41f-7d86265a7691",
+      "name": "Fetch Inactive Subscribers"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw",
+          "mode": "list",
+          "cachedResultName": "N8N - ONCE OFF SHEET",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1546628144,
+          "mode": "list",
+          "cachedResultName": "N8N - Inactive/Cancel Subscriber Email Automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit#gid=1546628144"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        400,
+        384
+      ],
+      "id": "d855e617-09d0-461a-be6a-9b417f1c4e25",
+      "name": "Read Sent Email History",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        608,
+        272
+      ],
+      "id": "c5d479ff-2948-479f-9512-a6899b6f695e",
+      "name": "Merge Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Build Email HTML for Inactive Subscriber Re-engagement ===\n\nconst items = $input.all();\nconst output = [];\n\nfor (const item of items) {\n  const c = item.json || {};\n  \n  // Extract fields\n  const email = String(c.email || '').trim();\n  const fullEircode = String(c.eircode || '').trim();\n  const eircode = fullEircode.substring(0, 3);\n  const collectionDate = String(c.collection_date || '').trim();\n  const collectionDay = String(c.collection_day || '').trim();\n  const collectionWeekLabel = String(c.collection_week_label || '').trim();\n  const firstName = String(c.first_name || '').trim() || 'there';\n  const platform = String(c.platform || '').trim().toLowerCase();\n  const subscriptionStatus = String(c.subscription_status || '').trim();\n  \n  // Skip if no email\n  if (!email) continue;\n\n  // Format collection date\n  let formattedCollectionDate = '';\n  if (collectionDate) {\n    try {\n      const dateStr = /^\\d{4}-\\d{2}-\\d{2}$/.test(collectionDate)\n        ? collectionDate + 'T12:00:00Z'\n        : collectionDate;\n      const d = new Date(dateStr);\n      if (!isNaN(d.getTime())) {\n        formattedCollectionDate = d.toLocaleDateString('en-IE', {\n          weekday: 'long',\n          year: 'numeric',\n          month: 'long',\n          day: 'numeric'\n        });\n      } else {\n        formattedCollectionDate = collectionDate;\n      }\n    } catch (e) {\n      formattedCollectionDate = collectionDate;\n    }\n  }\n\n  // Determine CTAs based on platform\n  const isShopify = platform === 'shopify' || platform === 'both';\n  const isWooCommerce = platform === 'woocommerce' || platform === 'both';\n  \n  // Discount code for Shopify\n  const discountCode = isShopify ? '10MONTHLY' : '';\n  const discountText = isShopify \n    ? '<div style=\"background:#fff3cd;padding:15px;border-left:4px solid #ffc107;margin:20px 0;border-radius:4px;\"><h3 style=\"color:#856404;margin:0 0 10px 0;\">\ud83c\udf89 Welcome Back Offer</h3><p style=\"margin:5px 0;\">Use code <strong style=\"font-size:18px;color:#28a745;\">10MONTHLY</strong> for <strong>10% off monthly subscriptions for 1 year</strong></p></div>'\n    : '';\n\n  // Build CTA buttons\n  let ctaButtons = '';\n  if (isShopify) {\n    ctaButtons += '<a href=\"https://glassbag.ie/pages/pricing-page?discount=10MONTHLY\" style=\"display:inline-block;padding:12px 18px;background:#28a745;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600;margin:6px;\">Re-activate Subscription (CODE: 10MONTHLY)</a>';\n  }\n  if (isWooCommerce) {\n    ctaButtons += '<a href=\"https://glassbottlebin.ie/my-account/subscriptions/\" style=\"display:inline-block;padding:12px 18px;background:#28a745;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600;margin:6px;\">Re-activate Subscription</a>';\n  }\n  ctaButtons += '<a href=\"https://glassbag.ie/pages/pricing-page\" style=\"display:inline-block;padding:12px 18px;background:#007bff;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:600;margin:6px;\">Book Once-Off Collection</a>';\n\n  // Subject\n  const subject = 'We Miss You! Glass Collection Still Available in Your Area';\n\n  // Email body\n  const eventBlock = '<p style=\"margin:0 0 18px;\">Hi ' + firstName + ',</p>' +\n    '<p style=\"margin:0 0 18px;\">We noticed you\\'re no longer with us for glass collection, and we wanted to reach out. We\\'re still collecting in your area <strong>' + (eircode || 'regularly') + '</strong>, and we\\'d love to have you back.</p>' +\n    discountText +\n    '<div style=\"background:#e8f5e8;padding:15px;border-left:4px solid #28a745;margin:20px 0;border-radius:4px;\">' +\n    '<h3 style=\"color:#28a745;margin:0 0 10px 0;\">Next Collection in Your Area</h3>' +\n    (formattedCollectionDate ? '<p style=\"margin:5px 0;\"><strong>Collection Date:</strong> ' + formattedCollectionDate + (collectionDay ? ' (' + collectionDay + ')' : '') + '</p>' : '') +\n    (collectionWeekLabel ? '<p style=\"margin:5px 0;\"><strong>Schedule:</strong> ' + collectionWeekLabel + '</p>' : '') +\n    '<p style=\"margin:5px 0;\"><strong>How it works:</strong> Order by 12pm the day before your collection</p>' +\n    '</div>' +\n    '<h2 style=\"margin:24px 0 12px;font-size:20px;color:#28a745;\">Choose Your Option</h2>' +\n    '<div style=\"text-align:center;margin:24px 0;\">' +\n    ctaButtons +\n    '</div>' +\n    '<div style=\"background:#e3f2fd;padding:15px;border-left:4px solid #007bff;margin:20px 0;border-radius:4px;\">' +\n    '<h3 style=\"color:#007bff;margin:0 0 10px 0;font-size:16px;\">\ud83d\udca1 Not Ready for Regular Collections?</h3>' +\n    '<p style=\"margin:5px 0;color:#333;\">No worries! Even if you don\\'t want a subscription, we offer <strong>Once-Off collections</strong> too. Book whenever you need us, no commitment required.</p>' +\n    '<p style=\"margin:10px 0 0;color:#555;font-size:14px;\">Perfect for: Special occasions, spring cleaning, or just when your bottles pile up!</p>' +\n    '</div>' +\n    '<div style=\"background:#f8f9fa;padding:15px;border-radius:4px;margin:20px 0;\">' +\n    '<h3 style=\"color:#333;margin:0 0 10px 0;font-size:16px;\">Why Come Back?</h3>' +\n    '<ul style=\"margin:0;padding-left:20px;color:#555;\">' +\n    '<li>Convenient doorstep collection</li>' +\n    '<li>Help the environment - keep glass out of landfills</li>' +\n    '<li>Cancel at any time</li>' +\n    '<li>SMS reminders so you never miss a collection</li>' +\n    '</ul>' +\n    '</div>';\n\n  // Full HTML\n  const html = '<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>We Miss You - GlassBag.ie</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"></head>' +\n    '<body style=\"margin:0;padding:0;background:#f5f7fa;font-family:Arial,Helvetica,sans-serif;\">' +\n    '<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f5f7fa;padding:20px 0;\"><tr><td align=\"center\">' +\n    '<table role=\"presentation\" width=\"700\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.06);\">' +\n    '<tr><td style=\"padding:0;\"><img src=\"http://cdn.mcauto-images-production.sendgrid.net/2310dfbf22c43279/f315f15e-c7c1-4398-b0e4-a636000951d8/560x102.jpg\" alt=\"GlassBag.ie\" width=\"700\" style=\"display:block;width:100%;max-width:700px;border:0;\"></td></tr>' +\n    '<tr><td style=\"padding:0;\"><img src=\"http://cdn.mcauto-images-production.sendgrid.net/2310dfbf22c43279/47c1ab63-dc58-4a82-bec9-2e52aa8deaa0/2048x902.png\" alt=\"Glass collection\" width=\"700\" style=\"display:block;width:100%;max-width:700px;border:0;\"></td></tr>' +\n    '<tr><td style=\"background:#28a745;color:#fff;text-align:center;padding:24px 32px;\"><h1 style=\"margin:0;font-size:24px;font-weight:600;\">We Miss You!</h1><p style=\"margin:4px 0 0;font-size:16px;\">Come back to hassle-free glass recycling</p></td></tr>' +\n    '<tr><td style=\"padding:32px;color:#333;font-size:16px;line-height:24px;\">' + eventBlock +\n    '<h2 style=\"margin:24px 0 12px;font-size:20px;color:#28a745;\">View Collection Calendar</h2>' +\n    '<p style=\"margin:0 0 12px;\">Check your collection schedule online anytime:</p>' +\n    '<p style=\"margin:0 0 12px;\"><a href=\"https://glassbag.ie/pages/glass-bag-collections-monthly-calendar\" style=\"color:#28a745;text-decoration:none;\">glassbag.ie/pages/glass-bag-collections-monthly-calendar</a></p>' +\n    '<p style=\"margin:24px 0 4px;\">We\\'d love to see you back,</p>' +\n    '<p style=\"margin:0;\"><strong>David and Mark</strong><br><em>The GlassBag Team</em></p>' +\n    '</td></tr>' +\n    '<tr><td style=\"padding:0 32px;\"><hr style=\"border:none;border-top:1px solid #e0e0e0;margin:0;\"></td></tr>' +\n    '<tr><td style=\"padding:24px 32px 8px;font-size:16px;color:#333;\" align=\"center\">' +\n    '<img src=\"https://gosimple-media.lon1.cdn.digitaloceanspaces.com/GoSimple%20Logo-01%20(3).png\" width=\"200\" style=\"display:block;margin:0 auto 12px;border:0;\">' +\n    '<h2 style=\"margin:0 0 8px;font-size:20px;color:#007bff;text-align:center;\">Need work done around the house?</h2>' +\n    '<p style=\"margin:0 0 12px;text-align:center;\">Try <strong>GoSimple.ie</strong> for power washing, gutters, windows and more.</p>' +\n    '<a href=\"https://gosimple.ie\" style=\"display:inline-block;padding:10px 18px;background:#007bff;color:#fff;text-decoration:none;border-radius:4px;font-size:14px;\">Visit GoSimple.ie</a>' +\n    '</td></tr>' +\n    '<tr><td style=\"padding:24px 32px 24px;font-size:16px;color:#333;\" align=\"center\">' +\n    '<img src=\"https://gosimple-media.lon1.cdn.digitaloceanspaces.com/GlassBag/JunkIreland.com%20Logo\" width=\"220\" style=\"display:block;margin:0 auto 12px;border:0;\">' +\n    '<h2 style=\"margin:0 0 8px;font-size:20px;text-align:center;\">Need junk removed?</h2>' +\n    '<p style=\"margin:0 0 10px;text-align:center;\"><strong>JunkIreland.com</strong> handles the heavy lifting.</p>' +\n    '<a href=\"https://junkireland.com\" style=\"display:inline-block;padding:10px 18px;background:#222;color:#fff;text-decoration:none;border-radius:4px;font-size:14px;\">Book Junk Removal</a>' +\n    '</td></tr>' +\n    '<tr><td style=\"background:#f0f0f0;padding:16px;text-align:center;font-size:12px;color:#444;\">' +\n    '<p style=\"margin:0 0 8px;\">GlassBag, Dublin, Ireland</p>' +\n    '<p style=\"margin:0;\"><a href=\"{{{unsubscribe}}}\" style=\"color:#444;\">Unsubscribe</a> - <a href=\"{{{unsubscribe_preferences}}}\" style=\"color:#444;\">Preferences</a></p>' +\n    '</td></tr>' +\n    '</table></td></tr></table></body></html>';\n\n  // Plain text version\n  const text = 'Hi ' + firstName + ',\\n\\n' +\n    'We noticed you\\'re no longer with us for glass collection. We\\'re still collecting in your area and we\\'d love to have you back.\\n\\n' +\n    (isShopify ? 'Special Offer: Use code 10MONTHLY for 10% off monthly subscriptions for 1 year\\n\\n' : '') +\n    'Next Collection: ' + (formattedCollectionDate || collectionDate || 'Check calendar') + '\\n\\n' +\n    'Re-activate: https://glassbag.ie/pages/pricing-page' + (isShopify ? '?discount=10MONTHLY' : '') + '\\n' +\n    'Book Once-Off: https://glassbag.ie/pages/pricing-page\\n\\n' +\n    'Not Ready for Regular Collections?\\n' +\n    'No worries! Even if you don\\'t want a subscription, we offer Once-Off collections too. Book whenever you need us, no commitment required. Perfect for special occasions, spring cleaning, or just when your bottles pile up!\\n\\n' +\n    'Calendar: https://glassbag.ie/pages/glass-bag-collections-monthly-calendar\\n\\n' +\n    'To unsubscribe, click here: {{{unsubscribe}}}\\n\\n' +\n    'David and Mark\\nThe GlassBag Team';\n\n  output.push({\n    json: {\n      email: email,\n      first_name: c.first_name,\n      last_name: c.last_name,\n      phone: c.phone,\n      eircode: eircode,\n      platform: platform,\n      shopify_customer_id: c.shopify_customer_id || '',\n      woocommerce_customer_id: c.woocommerce_customer_id || '',\n      subscription_status: subscriptionStatus,\n      cancelled_date: c.cancelled_date || '',\n      collection_date: collectionDate,\n      collection_day: collectionDay,\n      collection_week_label: collectionWeekLabel,\n      days_until_collection: c.days_until_collection,\n      email_to: email,\n      email_subject: subject,\n      email_html: html,\n      email_text: text,\n      discount_code: discountCode\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        272
+      ],
+      "id": "e0c59104-54fc-47d7-b761-a4edb3f2d5a1",
+      "name": "Build Re-engagement Email"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "customers",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        400,
+        112
+      ],
+      "id": "8eeb6718-442a-42f8-b150-5166f80e7546",
+      "name": "Split Out Customers1"
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "info@glassbag.ie",
+        "fromName": "GlassBag",
+        "toEmail": "={{ $json.email_to }}",
+        "subject": "={{ $json.email_subject }}",
+        "contentType": "text/html",
+        "contentValue": "={{ $json.email_html }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [
+        1232,
+        160
+      ],
+      "id": "602b1410-3daa-411b-b62b-b51718721952",
+      "name": "Send Email1",
+      "credentials": {
+        "sendGridApi": {
+          "id": "jdtWfQv2UFn0pPYG",
+          "name": "SendGrid account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw",
+          "mode": "list",
+          "cachedResultName": "N8N - ONCE OFF SHEET"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1546628144,
+          "mode": "list",
+          "cachedResultName": "N8N - Inactive/Cancel Subscriber Email Automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit#gid=1546628144"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $json.email }}",
+            "First Name": "={{ $json.first_name }}",
+            "Last Name": "={{ $json.last_name }}",
+            "Platform": "={{ $json.platform }}",
+            "Eircode": "={{ $json.eircode }}",
+            "Collection Date": "={{ $json.collection_date }}",
+            "Collection Day": "={{ $json.collection_day }}",
+            "Last Email Sent Date": "={{ $now.toISO() }}",
+            "Shopify Customer ID": "={{ $json.shopify_customer_id }}",
+            "WooCommerce Customer ID": "={{ $json.woocommerce_customer_id }}",
+            "Subscription Status": "={{ $json.subscription_status }}",
+            "Cancelled Date": "={{ $json.cancelled_date }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "First Name",
+              "displayName": "First Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Name",
+              "displayName": "Last Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Platform",
+              "displayName": "Platform",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Eircode",
+              "displayName": "Eircode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Collection Date",
+              "displayName": "Collection Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Collection Day",
+              "displayName": "Collection Day",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Email Sent Date",
+              "displayName": "Last Email Sent Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Shopify Customer ID",
+              "displayName": "Shopify Customer ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "WooCommerce Customer ID",
+              "displayName": "WooCommerce Customer ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subscription Status",
+              "displayName": "Subscription Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Cancelled Date",
+              "displayName": "Cancelled Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1232,
+        384
+      ],
+      "id": "d0dc4b8f-e5f8-4007-8a63-03f13492acdc",
+      "name": "Log Sent Email1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Comprehensive Summary: Once-Off Re-engagement ===\nconst fetchedData = $('Fetch Once-Off Customers').first();\nconst splitCustomers = $('Split Out Customers').all();\nconst filteredCustomers = $('Filter: 60-Day Rule').all();\nconst emailsSent = $('Send Email').all();\nconst emailsLogged = $('Log Sent Email').all();\n\n// Parse API response\nconst apiResponse = fetchedData.json || {};\nconst totalFetched = apiResponse.total_found || 0;\nconst totalWithCollection = apiResponse.total_collection_this_week || 0;\nconst totalProcessed = apiResponse.total_processed || 0;\nconst totalWithEircode = apiResponse.total_with_eircode || 0;\n\n// Calculate metrics\nconst filteredByRule = filteredCustomers.length;\nconst emailsAttempted = filteredByRule;\nconst emailsSucceeded = emailsSent.length;\nconst emailsFailed = emailsAttempted - emailsSucceeded;\nconst successRate = emailsAttempted > 0 ? ((emailsSucceeded / emailsAttempted) * 100).toFixed(1) : 0;\n\n// Collection day breakdown\nconst collectionDays = {};\nfilteredCustomers.forEach(item => {\n  const day = item.json.collection_day || 'Unknown';\n  collectionDays[day] = (collectionDays[day] || 0) + 1;\n});\n\n// Days until collection breakdown\nconst daysUntilBreakdown = {};\nfilteredCustomers.forEach(item => {\n  const days = item.json.days_until_collection || 0;\n  const label = days === 1 ? 'Tomorrow' : days === 0 ? 'Today' : `${days} days`;\n  daysUntilBreakdown[label] = (daysUntilBreakdown[label] || 0) + 1;\n});\n\n// Build summary object\nconst summary = {\n  workflow_name: \"Once-Off Customer Re-engagement\",\n  execution_date: new Date().toISOString(),\n  execution_timestamp: Date.now(),\n  \n  api_stats: {\n    total_customers_fetched: totalFetched,\n    customers_with_eircode: totalWithEircode,\n    customers_processed: totalProcessed,\n    customers_with_collection_this_week: totalWithCollection,\n    api_success: true\n  },\n  \n  filtering_stats: {\n    before_60day_filter: totalWithCollection,\n    after_60day_filter: filteredByRule,\n    filtered_out_by_rule: totalWithCollection - filteredByRule,\n    filter_rate_percent: totalWithCollection > 0 ? (((totalWithCollection - filteredByRule) / totalWithCollection) * 100).toFixed(1) : 0\n  },\n  \n  email_stats: {\n    emails_attempted: emailsAttempted,\n    emails_sent_successfully: emailsSucceeded,\n    emails_failed: emailsFailed,\n    emails_logged: emailsLogged.length,\n    success_rate_percent: successRate\n  },\n  \n  collection_breakdown: {\n    by_day: collectionDays,\n    by_days_until: daysUntilBreakdown\n  },\n  \n  outcome: emailsSucceeded > 0 \n    ? `Successfully sent ${emailsSucceeded} once-off collection reminders.`\n    : \"No eligible once-off customers found for this run.\",\n  \n  status: emailsFailed > 0 ? 'completed_with_errors' : emailsSucceeded > 0 ? 'success' : 'no_action'\n};\n\nreturn [{ json: summary }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1696,
+        -384
+      ],
+      "id": "b3635604-a518-430d-82f0-599fadc3e23d",
+      "name": "Final Summary - Once Off"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Comprehensive Summary: Inactive Subscriber Re-engagement ===\nconst fetchedData = $('Fetch Inactive Subscribers').first();\nconst splitCustomers = $('Split Out Customers1').all();\nconst filteredCustomers = $('Filter: 90-Day Rule').all();\nconst emailsSent = $('Send Email1').all();\nconst emailsLogged = $('Log Sent Email1').all();\n\n// Parse API response\nconst apiResponse = fetchedData.json || {};\nconst totalShopify = apiResponse.total_shopify_inactive || 0;\nconst totalWooCommerce = apiResponse.total_woocommerce_cancelled || 0;\nconst totalUnique = apiResponse.total_found || 0;\nconst totalWithCollection = apiResponse.total_collection_this_week || 0;\nconst totalProcessed = apiResponse.total_processed || 0;\nconst totalWithEircode = apiResponse.total_with_eircode || 0;\n\n// Calculate metrics\nconst filteredByRule = filteredCustomers.length;\nconst emailsAttempted = filteredByRule;\nconst emailsSucceeded = emailsSent.length;\nconst emailsFailed = emailsAttempted - emailsSucceeded;\nconst successRate = emailsAttempted > 0 ? ((emailsSucceeded / emailsAttempted) * 100).toFixed(1) : 0;\n\n// Platform breakdown\nconst platformCounts = {};\nfilteredCustomers.forEach(item => {\n  const p = item.json.platform || 'unknown';\n  platformCounts[p] = (platformCounts[p] || 0) + 1;\n});\n\n// Subscription status breakdown\nconst statusCounts = {};\nfilteredCustomers.forEach(item => {\n  const status = item.json.subscription_status || 'unknown';\n  statusCounts[status] = (statusCounts[status] || 0) + 1;\n});\n\n// Collection day breakdown\nconst collectionDays = {};\nfilteredCustomers.forEach(item => {\n  const day = item.json.collection_day || 'Unknown';\n  collectionDays[day] = (collectionDays[day] || 0) + 1;\n});\n\n// Days until collection breakdown\nconst daysUntilBreakdown = {};\nfilteredCustomers.forEach(item => {\n  const days = item.json.days_until_collection || 0;\n  const label = days === 1 ? 'Tomorrow' : days === 0 ? 'Today' : `${days} days`;\n  daysUntilBreakdown[label] = (daysUntilBreakdown[label] || 0) + 1;\n});\n\n// Build summary object\nconst summary = {\n  workflow_name: \"Inactive Subscriber Re-engagement\",\n  execution_date: new Date().toISOString(),\n  execution_timestamp: Date.now(),\n  \n  api_stats: {\n    shopify_inactive_subscribers: totalShopify,\n    woocommerce_cancelled_subscriptions: totalWooCommerce,\n    total_unique_customers: totalUnique,\n    customers_with_eircode: totalWithEircode,\n    customers_processed: totalProcessed,\n    customers_with_collection_this_week: totalWithCollection,\n    api_success: true\n  },\n  \n  filtering_stats: {\n    before_60day_filter: totalWithCollection,\n    after_60day_filter: filteredByRule,\n    filtered_out_by_rule: totalWithCollection - filteredByRule,\n    filter_rate_percent: totalWithCollection > 0 ? (((totalWithCollection - filteredByRule) / totalWithCollection) * 100).toFixed(1) : 0\n  },\n  \n  email_stats: {\n    emails_attempted: emailsAttempted,\n    emails_sent_successfully: emailsSucceeded,\n    emails_failed: emailsFailed,\n    emails_logged: emailsLogged.length,\n    success_rate_percent: successRate\n  },\n  \n  platform_breakdown: platformCounts,\n  \n  subscription_status_breakdown: statusCounts,\n  \n  collection_breakdown: {\n    by_day: collectionDays,\n    by_days_until: daysUntilBreakdown\n  },\n  \n  outcome: emailsSucceeded > 0 \n    ? `Successfully sent ${emailsSucceeded} re-engagement emails to inactive subscribers.`\n    : \"No eligible inactive subscribers found for this run.\",\n  \n  status: emailsFailed > 0 ? 'completed_with_errors' : emailsSucceeded > 0 ? 'success' : 'no_action'\n};\n\nreturn [{ json: summary }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1696,
+        272
+      ],
+      "id": "28db3ff8-080e-4770-b94d-76fa53fedd43",
+      "name": "Final Summary - Inactive"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Build HTML Email Report: Once-Off ===\nconst summary = $json;\n\nconst statusColor = summary.status === 'success' ? '#28a745' : summary.status === 'completed_with_errors' ? '#ffc107' : '#6c757d';\nconst statusLabel = summary.status === 'success' ? 'Success' : summary.status === 'completed_with_errors' ? 'Completed with Errors' : 'No Action';\n\n// Format collection day breakdown\nconst collectionDaysHtml = Object.entries(summary.collection_breakdown.by_day)\n  .map(([day, count]) => `<tr><td style=\"padding:8px;border-bottom:1px solid #eee;\">${day}</td><td style=\"padding:8px;border-bottom:1px solid #eee;text-align:right;font-weight:bold;\">${count}</td></tr>`)\n  .join('');\n\n// Format days until breakdown\nconst daysUntilHtml = Object.entries(summary.collection_breakdown.by_days_until)\n  .map(([label, count]) => `<tr><td style=\"padding:8px;border-bottom:1px solid #eee;\">${label}</td><td style=\"padding:8px;border-bottom:1px solid #eee;text-align:right;font-weight:bold;\">${count}</td></tr>`)\n  .join('');\n\nconst html = `\n<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n</head>\n<body style=\"margin:0;padding:20px;background:#f5f7fa;font-family:Arial,sans-serif;\">\n  <div style=\"max-width:700px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);\">\n    \n    <!-- Header -->\n    <div style=\"background:${statusColor};color:#fff;padding:24px;text-align:center;\">\n      <h1 style=\"margin:0;font-size:24px;font-weight:600;\">Once-Off Re-engagement Report</h1>\n      <p style=\"margin:8px 0 0;font-size:14px;opacity:0.9;\">Execution Date: ${new Date(summary.execution_date).toLocaleString('en-IE', {timeZone: 'Europe/Dublin'})}</p>\n      <div style=\"margin-top:12px;padding:8px 16px;background:rgba(255,255,255,0.2);border-radius:20px;display:inline-block;\">\n        <span style=\"font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;\">${statusLabel}</span>\n      </div>\n    </div>\n    \n    <!-- Outcome Message -->\n    <div style=\"padding:20px;background:#f8f9fa;border-bottom:1px solid #e9ecef;\">\n      <p style=\"margin:0;font-size:16px;color:#333;text-align:center;font-weight:500;\">${summary.outcome}</p>\n    </div>\n    \n    <!-- API Stats -->\n    <div style=\"padding:24px;border-bottom:2px solid #e9ecef;\">\n      <h2 style=\"margin:0 0 16px;font-size:18px;color:#333;\">\ud83d\udcca API Statistics</h2>\n      <table style=\"width:100%;border-collapse:collapse;\">\n        <tr style=\"background:#f8f9fa;\">\n          <td style=\"padding:10px;font-weight:600;border-bottom:1px solid #dee2e6;\">Total Customers Fetched</td>\n          <td style=\"padding:10px;text-align:right;font-weight:bold;border-bottom:1px solid #dee2e6;\">${summary.api_stats.total_customers_fetched}</td>\n        </tr>\n        <tr>\n          <td style=\"padding:10px;border-bottom:1px solid #dee2e6;\">With Eircode</td>\n          <td style=\"padding:10px;text-align:right;border-bottom:1px solid #dee2e6;\">${summary.api_stats.customers_with_eircode}</td>\n        </tr>\n        <tr style=\"background:#f8f9fa;\">\n          <td style=\"padding:10px;font-weight:600;border-bottom:1px solid #dee2e6;\">With Collection This Week</td>\n          <td style=\"padding:10px;text-align:right;font-weight:bold;color:#007bff;border-bottom:1px solid #dee2e6;\">${summary.api_stats.customers_with_collection_this_week}</td>\n        </tr>\n      </table>\n    </div>\n    \n    <!-- Filtering Stats -->\n    <div style=\"padding:24px;border-bottom:2px solid #e9ecef;\">\n      <h2 style=\"margin:0 0 16px;font-size:18px;color:#333;\">\ud83d\udd0d 60-Day Filter Results</h2>\n      <table style=\"width:100%;border-collapse:collapse;\">\n        <tr style=\"background:#f8f9fa;\">\n          <td style=\"padding:10px;border-bottom:1px solid #dee2e6;\">Before Filter</td>\n          <td style=\"padding:10px;text-align:right;border-bottom:1px solid #dee2e6;\">${summary.filtering_stats.before_60day_filter}</td>\n        </tr>\n        <tr>\n          <td style=\"padding:10px;font-weight:600;color:#28a745;border-bottom:1px solid #dee2e6;\">After Filter (Eligible)</td>\n          <td style=\"padding:10px;text-align:right;font-weight:bold;color:#28a745;border-bottom:1px solid #dee2e6;\">${summary.filtering_stats.after_60day_filter}</td>\n        </tr>\n        <tr style=\"background:#f8f9fa;\">\n          <td style=\"padding:10px;color:#6c757d;border-bottom:1px solid #dee2e6;\">Filtered Out (Recently Emailed)</td>\n          <td style=\"padding:10px;text-align:right;color:#6c757d;border-bottom:1px solid #dee2e6;\">${summary.filtering_stats.filtered_out_by_rule}</td>\n        </tr>\n      </table>\n    </div>\n    \n    <!-- Email Stats -->\n    <div style=\"padding:24px;border-bottom:2px solid #e9ecef;\">\n      <h2 style=\"margin:0 0 16px;font-size:18px;color:#333;\">\ud83d\udce7 Email Delivery</h2>\n      <table style=\"width:100%;border-collapse:collapse;\">\n        <tr style=\"background:#f8f9fa;\">\n          <td style=\"padding:10px;border-bottom:1px solid #dee2e6;\">Emails Attempted</td>\n          <td style=\"padding:10px;text-align:right;border-bottom:1px solid #dee2e6;\">${summary.email_stats.emails_attempted}</td>\n        </tr>\n        <tr>\n          <td style=\"padding:10px;font-weight:600;color:#28a745;border-bottom:1px solid #dee2e6;\">Successfully Sent</td>\n          <td style=\"padding:10px;text-align:right;font-weight:bold;color:#28a745;font-size:18px;border-bottom:1px solid #dee2e6;\">${summary.email_stats.emails_sent_successfully}</td>\n        </tr>\n        <tr style=\"background:#f8f9fa;\">\n          <td style=\"padding:10px;color:${summary.email_stats.emails_failed > 0 ? '#dc3545' : '#6c757d'};border-bottom:1px solid #dee2e6;\">Failed</td>\n          <td style=\"padding:10px;text-align:right;color:${summary.email_stats.emails_failed > 0 ? '#dc3545' : '#6c757d'};font-weight:${summary.email_stats.emails_failed > 0 ? 'bold' : 'normal'};border-bottom:1px solid #dee2e6;\">${summary.email_stats.emails_failed}</td>\n        </tr>\n        <tr>\n          <td style=\"padding:10px;font-weight:600;border-bottom:1px solid #dee2e6;\">Success Rate</td>\n          <td style=\"padding:10px;text-align:right;font-weight:bold;color:#007bff;border-bottom:1px solid #dee2e6;\">${summary.email_stats.success_rate_percent}%</td>\n        </tr>\n      </table>\n    </div>\n    \n    <!-- Collection Day Breakdown -->\n    <div style=\"padding:24px;border-bottom:2px solid #e9ecef;\">\n      <h2 style=\"margin:0 0 16px;font-size:18px;color:#333;\">\ud83d\udcc5 Collection Day Breakdown</h2>\n      <table style=\"width:100%;border-collapse:collapse;\">\n        ${collectionDaysHtml || '<tr><td style=\"padding:10px;color:#6c757d;text-align:center;\" colspan=\"2\">No data</td></tr>'}\n      </table>\n    </div>\n    \n    <!-- Days Until Collection -->\n    <div style=\"padding:24px;\">\n      <h2 style=\"margin:0 0 16px;font-size:18px;color:#333;\">\u23f0 Days Until Collection</h2>\n      <table style=\"width:100%;border-collapse:collapse;\">\n        ${daysUntilHtml || '<tr><td style=\"padding:10px;color:#6c757d;text-align:center;\" colspan=\"2\">No data</td></tr>'}\n      </table>\n    </div>\n    \n    <!-- Footer -->\n    <div style=\"background:#f1f3f5;padding:16px;text-align:center;font-size:12px;color:#6c757d;\">\n      <p style=\"margin:0;\">GlassBag.ie Automation System</p>\n      <p style=\"margin:4px 0 0;\">Generated at ${new Date().toLocaleTimeString('en-IE', {timeZone: 'Europe/Dublin'})}</p>\n    </div>\n    \n  </div>\n</body>\n</html>\n`;\n\nconst subject = `[Once-Off] ${summary.email_stats.emails_sent_successfully} Emails Sent | ${statusLabel}`;\n\nreturn [{\n  json: {\n    subject: subject,\n    html: html,\n    summary: summary\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1904,
+        -384
+      ],
+      "id": "6a134ef2-de8f-436b-800d-1144118a29ee",
+      "name": "Build Once Off Email Report"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Build HTML Email Report: Inactive Subscribers ===\nconst summary = $json;\n\nconst statusColor = summary.status === 'success' ? '#28a745' : summary.status === 'completed_with_errors' ? '#ffc107' : '#6c757d';\nconst statusLabel = summary.status === 'success' ? 'Success' : summary.status === 'completed_with_errors' ? 'Completed with Errors' : 'No Action';\n\n// Format platform breakdown\nconst platformHtml = Object.entries(summary.platform_breakdown)\n  .map(([platform, count]) => {\n    const displayName = platform === 'shopify' ? 'Shopify Only' : platform === 'woocommerce' ? 'WooCommerce Only' : platform === 'both' ? 'Both Platforms' : platform;\n    return `<tr><td style=\"padding:8px;border-bottom:1px solid #eee;\">${displayName}</td><td style=\"padding:8px;border-bottom:1px solid #eee;text-align:right;font-weight:bold;\">${count}</td></tr>`;\n  })\n  .join('');\n\n// Format subscription status breakdown\nconst statusHtml = Object.entries(summary.subscription_status_breakdown)\n  .map(([status, count]) => `<tr><td style=\"padding:8px;border-bottom:1px solid #eee;text-transform:capitalize;\">${status}</td><td style=\"padding:8px;border-bottom:1px solid #eee;text-align:right;font-weight:bold;\">${count}</td></tr>`)\n  .join('');\n\n// Format collection day breakdown\nconst collectionDaysHtml = Object.entries(summary.collection_breakdown.by_day)\n  .map(([day, count]) => `<tr><td style=\"padding:8px;border-bottom:1px solid #eee;\">${day}</td><td style=\"padding:8px;border-bottom:1px solid #eee;text-align:right;font-weight:bold;\">${count}</td></tr>`)\n  .join('');\n\n// Format days until breakdown\nconst daysUntilHtml = Object.entries(summary.collection_breakdown.by_days_until)\n  .map(([label, count]) => `<tr><td style=\"padding:8px;border-bottom:1px solid #eee;\">${label}</td><td style=\"padding:8px;border-bottom:1px solid #eee;text-align:right;font-weight:bold;\">${count}</td></tr>`)\n  .join('');\n\nconst html = `\n<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n</head>\n<body style=\"margin:0;padding:20px;background:#f5f7fa;font-family:Arial,sans-serif;\">\n  <div style=\"max-width:700px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);\">\n    \n    <!-- Header -->\n    <div style=\"background:${statusColor};color:#fff;padding:24px;text-align:center;\">\n      <h1 style=\"margin:0;font-size:24px;font-weight:600;\">Inactive Subscriber Re-engagement Report</h1>\n      <p style=\"margin:8px 0 0;font-size:14px;opacity:0.9;\">Execution Date: ${new Date(summary.execution_date).toLocaleString('en-IE', {timeZone: 'Europe/Dublin'})}</p>\n      <div style=\"margin-top:12px;padding:8px 16px;background:rgba(255,255,255,0.2);border-radius:20px;display:inline-block;\">\n        <span style=\"font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;\">${statusLabel}</span>\n      </div>\n    </div>\n    \n    <!-- Outcome Message -->\n    <div style=\"padding:20px;background:#f8f9fa;border-bottom:1px solid #e9ecef;\">\n      <p style=\"margin:0;font-size:16px;color:#333;text-align:center;font-weight:500;\">${summary.outcome}</p>\n    </div>\n    \n    <!-- API Stats -->\n    <div style=\"padding:24px;border-bottom:2px solid #e9ecef;\">\n      <h2 style=\"margin:0 0 16px;font-size:18px;color:#333;\">\ud83d\udcca API Statistics</h2>\n      <table style=\"width:100%;border-collapse:collapse;\">\n        <tr style=\"background:#f8f9fa;\">\n          <td style=\"padding:10px;font-weight:600;border-bottom:1px solid #dee2e6;\">Shopify Inactive Subscribers</td>\n          <td style=\"padding:10px;text-align:right;font-weight:bold;color:#7b3ff2;border-bottom:1px solid #dee2e6;\">${summary.api_stats.shopify_inactive_subscribers}</td>\n        </tr>\n        <tr>\n          <td style=\"padding:10px;font-weight:600;border-bottom:1px solid #dee2e6;\">WooCommerce Cancelled</td>\n          <td style=\"padding:10px;text-align:right;font-weight:bold;color:#9333ea;border-bottom:1px solid #dee2e6;\">${summary.api_stats.woocommerce_cancelled_subscriptions}</td>\n        </tr>\n        <tr style=\"background:#f8f9fa;\">\n          <td style=\"padding:10px;font-weight:600;border-bottom:1px solid #dee2e6;\">Total Unique Customers</td>\n          <td style=\"padding:10px;text-align:right;font-weight:bold;border-bottom:1px solid #dee2e6;\">${summary.api_stats.total_unique_customers}</td>\n        </tr>\n        <tr>\n          <td style=\"padding:10px;border-bottom:1px solid #dee2e6;\">With Eircode</td>\n          <td style=\"padding:10px;text-align:right;border-bottom:1px solid #dee2e6;\">${summary.api_stats.customers_with_eircode}</td>\n        </tr>\n        <tr style=\"background:#f8f9fa;\">\n          <td style=\"padding:10px;font-weight:600;border-bottom:1px solid #dee2e6;\">With Collection This Week</td>\n          <td style=\"padding:10px;text-align:right;font-weight:bold;color:#007bff;border-bottom:1px solid #dee2e6;\">${summary.api_stats.customers_with_collection_this_week}</td>\n        </tr>\n      </table>\n    </div>\n    \n    <!-- Platform Breakdown -->\n    <div style=\"padding:24px;border-bottom:2px solid #e9ecef;\">\n      <h2 style=\"margin:0 0 16px;font-size:18px;color:#333;\">\ud83d\uded2 Platform Breakdown</h2>\n      <table style=\"width:100%;border-collapse:collapse;\">\n        ${platformHtml || '<tr><td style=\"padding:10px;color:#6c757d;text-align:center;\" colspan=\"2\">No data</td></tr>'}\n      </table>\n    </div>\n    \n    <!-- Filtering Stats -->\n    <div style=\"padding:24px;border-bottom:2px solid #e9ecef;\">\n      <h2 style=\"margin:0 0 16px;font-size:18px;color:#333;\">\ud83d\udd0d 60-Day Filter Results</h2>\n      <table style=\"width:100%;border-collapse:collapse;\">\n        <tr style=\"background:#f8f9fa;\">\n          <td style=\"padding:10px;border-bottom:1px solid #dee2e6;\">Before Filter</td>\n          <td style=\"padding:10px;text-align:right;border-bottom:1px solid #dee2e6;\">${summary.filtering_stats.before_60day_filter}</td>\n        </tr>\n        <tr>\n          <td style=\"padding:10px;font-weight:600;color:#28a745;border-bottom:1px solid #dee2e6;\">After Filter (Eligible)</td>\n          <td style=\"padding:10px;text-align:right;font-weight:bold;color:#28a745;border-bottom:1px solid #dee2e6;\">${summary.filtering_stats.after_60day_filter}</td>\n        </tr>\n        <tr style=\"background:#f8f9fa;\">\n          <td style=\"padding:10px;color:#6c757d;border-bottom:1px solid #dee2e6;\">Filtered Out (Recently Emailed)</td>\n          <td style=\"padding:10px;text-align:right;color:#6c757d;border-bottom:1px solid #dee2e6;\">${summary.filtering_stats.filtered_out_by_rule}</td>\n        </tr>\n      </table>\n    </div>\n    \n    <!-- Email Stats -->\n    <div style=\"padding:24px;border-bottom:2px solid #e9ecef;\">\n      <h2 style=\"margin:0 0 16px;font-size:18px;color:#333;\">\ud83d\udce7 Email Delivery</h2>\n      <table style=\"width:100%;border-collapse:collapse;\">\n        <tr style=\"background:#f8f9fa;\">\n          <td style=\"padding:10px;border-bottom:1px solid #dee2e6;\">Emails Attempted</td>\n          <td style=\"padding:10px;text-align:right;border-bottom:1px solid #dee2e6;\">${summary.email_stats.emails_attempted}</td>\n        </tr>\n        <tr>\n          <td style=\"padding:10px;font-weight:600;color:#28a745;border-bottom:1px solid #dee2e6;\">Successfully Sent</td>\n          <td style=\"padding:10px;text-align:right;font-weight:bold;color:#28a745;font-size:18px;border-bottom:1px solid #dee2e6;\">${summary.email_stats.emails_sent_successfully}</td>\n        </tr>\n        <tr style=\"background:#f8f9fa;\">\n          <td style=\"padding:10px;color:${summary.email_stats.emails_failed > 0 ? '#dc3545' : '#6c757d'};border-bottom:1px solid #dee2e6;\">Failed</td>\n          <td style=\"padding:10px;text-align:right;color:${summary.email_stats.emails_failed > 0 ? '#dc3545' : '#6c757d'};font-weight:${summary.email_stats.emails_failed > 0 ? 'bold' : 'normal'};border-bottom:1px solid #dee2e6;\">${summary.email_stats.emails_failed}</td>\n        </tr>\n        <tr>\n          <td style=\"padding:10px;font-weight:600;border-bottom:1px solid #dee2e6;\">Success Rate</td>\n          <td style=\"padding:10px;text-align:right;font-weight:bold;color:#007bff;border-bottom:1px solid #dee2e6;\">${summary.email_stats.success_rate_percent}%</td>\n        </tr>\n      </table>\n    </div>\n    \n    <!-- Collection Day Breakdown -->\n    <div style=\"padding:24px;border-bottom:2px solid #e9ecef;\">\n      <h2 style=\"margin:0 0 16px;font-size:18px;color:#333;\">\ud83d\udcc5 Collection Day Breakdown</h2>\n      <table style=\"width:100%;border-collapse:collapse;\">\n        ${collectionDaysHtml || '<tr><td style=\"padding:10px;color:#6c757d;text-align:center;\" colspan=\"2\">No data</td></tr>'}\n      </table>\n    </div>\n    \n    <!-- Days Until Collection -->\n    <div style=\"padding:24px;\">\n      <h2 style=\"margin:0 0 16px;font-size:18px;color:#333;\">\u23f0 Days Until Collection</h2>\n      <table style=\"width:100%;border-collapse:collapse;\">\n        ${daysUntilHtml || '<tr><td style=\"padding:10px;color:#6c757d;text-align:center;\" colspan=\"2\">No data</td></tr>'}\n      </table>\n    </div>\n    \n    <!-- Footer -->\n    <div style=\"background:#f1f3f5;padding:16px;text-align:center;font-size:12px;color:#6c757d;\">\n      <p style=\"margin:0;\">GlassBag.ie Automation System</p>\n      <p style=\"margin:4px 0 0;\">Generated at ${new Date().toLocaleTimeString('en-IE', {timeZone: 'Europe/Dublin'})}</p>\n    </div>\n    \n  </div>\n</body>\n</html>\n`;\n\nconst subject = `[Inactive Subs] ${summary.email_stats.emails_sent_successfully} Emails Sent | ${statusLabel}`;\n\nreturn [{\n  json: {\n    subject: subject,\n    html: html,\n    summary: summary\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1904,
+        272
+      ],
+      "id": "298ea617-314a-4940-80ff-213d3d17e46a",
+      "name": "Build Inactive Subscriber Email Report"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1472,
+        -384
+      ],
+      "id": "72e167ad-0c6b-44ba-9554-db030ce1caca",
+      "name": "Merge (Once-Off)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1472,
+        272
+      ],
+      "id": "7ad5c510-86b5-406b-ab5a-290b6e26d36f",
+      "name": "Merge (Inactive)"
+    },
+    {
+      "parameters": {
+        "sendTo": "mark@glassbag.ie",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2112,
+        -384
+      ],
+      "id": "bda37a27-d37f-4e0e-8dc0-ed2188abb90a",
+      "name": "Send Gmail Report (Once-Off)",
+      "webhookId": "5cfbe262-5dd6-447b-833a-c73e7aa99c7e",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6lB6mgLBMfvG3wjl",
+          "name": "Gmail account: info@glassbag.ie"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "mark@glassbag.ie",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2112,
+        272
+      ],
+      "id": "8a440b43-5758-41e9-bc9a-0e7473770f98",
+      "name": "Send Gmail Report (Inactive)",
+      "webhookId": "6dfc273-6ee7-558c-944b-d84e7aa99c7f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6lB6mgLBMfvG3wjl",
+          "name": "Gmail account: info@glassbag.ie"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Check if we should send email (60-day rule) ===\n// Input 1: Customers from Split Out\n// Input 2: All rows from Google Sheet (sent email history)\n\nconst customers = $('Split Out Customers1').all();\nconst sheetRows = $('Read Sent Email History').all();\n\n// Build a map of email -> last sent date from sheet\nconst emailHistory = {};\nfor (const row of sheetRows) {\n  const email = String(row.json.Email || row.json.email || '').trim().toLowerCase();\n  const lastSent = row.json['Last Email Sent Date'] || row.json.last_email_sent_date || null;\n  if (email && lastSent) {\n    emailHistory[email] = lastSent;\n  }\n}\n\nconst today = new Date();\nconst sixtyDaysAgo = new Date(today);\nsixtyDaysAgo.setDate(today.getDate() - 60);\n\nconst output = [];\n\nfor (const item of customers) {\n  const c = item.json || {};\n  const email = String(c.email || '').trim().toLowerCase();\n  \n  if (!email) continue; // Skip if no email\n  \n  const lastSentStr = emailHistory[email] || null;\n  let shouldSendEmail = false;\n  \n  if (!lastSentStr) {\n    // Never emailed before\n    shouldSendEmail = true;\n  } else {\n    const lastSentDate = new Date(lastSentStr);\n    if (!isNaN(lastSentDate.getTime()) && lastSentDate < sixtyDaysAgo) {\n      shouldSendEmail = true;\n    }\n  }\n  \n  if (shouldSendEmail) {\n    output.push({\n      json: {\n        ...c,\n        lastEmailDate: lastSentStr || null\n      }\n    });\n  }\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        272
+      ],
+      "id": "46895157-ad65-4433-9d32-286a0b5a4ed0",
+      "name": "Filter: 90-Day Rule"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Sunday 9:30am)": {
+      "main": [
+        [
+          {
+            "node": "Fetch Once-Off Customers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Once-Off Customers": {
+      "main": [
+        [
+          {
+            "node": "Split Out Customers",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read All Sent Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out Customers": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read All Sent Emails": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Filter: 60-Day Rule": {
+      "main": [
+        [
+          {
+            "node": "Build Email HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Email HTML": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Sent Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Merge (Once-Off)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Filter: 60-Day Rule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger (Sunday 10:00am)": {
+      "main": [
+        [
+          {
+            "node": "Fetch Inactive Subscribers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Inactive Subscribers": {
+      "main": [
+        [
+          {
+            "node": "Split Out Customers1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Sent Email History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Sent Email History": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Data": {
+      "main": [
+        [
+          {
+            "node": "Filter: 90-Day Rule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Re-engagement Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Sent Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out Customers1": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Sent Email": {
+      "main": [
+        [
+          {
+            "node": "Merge (Once-Off)",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Send Email1": {
+      "main": [
+        [
+          {
+            "node": "Merge (Inactive)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Sent Email1": {
+      "main": [
+        [
+          {
+            "node": "Merge (Inactive)",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Final Summary - Once Off": {
+      "main": [
+        [
+          {
+            "node": "Build Once Off Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Summary - Inactive": {
+      "main": [
+        [
+          {
+            "node": "Build Inactive Subscriber Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge (Once-Off)": {
+      "main": [
+        [
+          {
+            "node": "Final Summary - Once Off",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge (Inactive)": {
+      "main": [
+        [
+          {
+            "node": "Final Summary - Inactive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Once Off Email Report": {
+      "main": [
+        [
+          {
+            "node": "Send Gmail Report (Once-Off)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Inactive Subscriber Email Report": {
+      "main": [
+        [
+          {
+            "node": "Send Gmail Report (Inactive)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter: 90-Day Rule": {
+      "main": [
+        [
+          {
+            "node": "Build Re-engagement Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,1306 @@
+{
+  "_meta": {
+    "n8n_id": "5N4mMmmm4iTOUpH3",
+    "pulled_at": "2026-02-23T02:24:46Z",
+    "description": "NEW: Glassbag.ie - Pending Action & Alias Once-Off Scheduler"
+  },
+  "name": "NEW: Glassbag.ie - Pending Action & Alias Once-Off Scheduler",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// === Check if Alias Action ===\n// Input: { task: {...}, api: {...} }\n// Output: { task, api, alias_action }\n\nconst items = $input.all();\nconst out = [];\n\nfor (const item of items) {\n  const j = item.json || {};\n  const task = j.task || null;\n  const api  = j.api || {};\n\n  let alias_action = 'skip';\n\n  // Only create once-off when:\n  // - schedule found\n  // - there is an earlier alias\n  // - best_alias exists\n  // - main route is more than 10 days away\n  if (\n    api.found === true &&\n    api.has_earlier_alias === true &&\n    api.best_alias &&\n    typeof api.days_until_collection === 'number' &&\n    api.days_until_collection > 14\n  ) {\n    alias_action = 'create_onceoff';\n  }\n\n  out.push({\n    json: {\n      task,\n      api,\n      alias_action,\n    },\n  });\n}\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        864,
+        -16
+      ],
+      "id": "6ecfe3f6-6da2-4cc0-9b6a-7ac64a7e865f",
+      "name": "Check if Alias Action"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "27250d24-fed8-46f4-921d-125dbdaf9ead",
+              "leftValue": "={{ $json.alias_action }}",
+              "rightValue": "create_onceoff",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1088,
+        -16
+      ],
+      "id": "c66230ad-b668-42db-9c98-8a77ca7722e4",
+      "name": "Alias Action - Skip?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Wrap each Pending Actions row under \"task\"\nconst items = $input.all();\n\nreturn items.map(item => ({\n  json: {\n    task: item.json\n  }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        0
+      ],
+      "id": "847ce635-88a5-40b0-ac73-ffd6731f4c92",
+      "name": "Wrap Pending Action"
+    },
+    {
+      "parameters": {
+        "url": "https://gbr-api.vercel.app/api/collection-date",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "=eircode",
+              "value": "={{ $json.eircode }}"
+            },
+            {
+              "name": "province",
+              "value": "={{ $json.province }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        -192
+      ],
+      "id": "eb883173-5281-4cea-88b6-2346d330f12d",
+      "name": "HTTP Request",
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Wrap the HTTP result under \"api\"\nconst items = $input.all();\n\nreturn items.map(item => ({\n  json: {\n    api: item.json\n  }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -192
+      ],
+      "id": "d3c05ac8-5995-4f09-a2c8-68bd44bffb29",
+      "name": "Wrap API"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        640,
+        -16
+      ],
+      "id": "6aec2612-0856-47c3-8e6f-ec69960e10b8",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw",
+          "mode": "list",
+          "cachedResultName": "N8N - ONCE OFF SHEET",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $json.onceOffRow.Email }}",
+            "Full Name": "={{ $json.onceOffRow['Full Name'] }}",
+            "Address 1": "={{ $json.address }}",
+            "City": "={{ $json.onceOffRow.City }}",
+            "Province": "={{ $json.onceOffRow.Province }}",
+            "Zip": "={{ $json.onceOffRow.Zip }}",
+            "Country": "Ireland",
+            "Phone": "={{ (() => {\n  const DELIVERY_PHONE = '873157744';\n  const actionType = String($json.action_type || '').toLowerCase();\n  const fullName = String((($json.onceOffRow && $json.onceOffRow['Full Name']) || $json['Full Name'] || ($json.body && $json.body.full_name) || '')).toUpperCase();\n  const notes = String(($json.notes || ($json.onceOffRow && $json.onceOffRow.Notes) || ($json.body && $json.body.notes) || '')).toUpperCase();\n  const isDelivery = actionType === 'deliver_bag' || fullName.startsWith('DELIVER') || notes.includes('DELIVER BAG') || notes.includes('NEVER RECEIVED BAG');\n  if (isDelivery) return DELIVERY_PHONE;\n\n  const rawPhone = String((($json.onceOffRow && $json.onceOffRow.Phone) || $json.Phone || ($json.body && $json.body.phone) || ''));\n  let digits = rawPhone.replace(/\\D/g, '');\n  if (digits.startsWith('00')) digits = digits.slice(2);\n  if (digits.startsWith('353')) digits = digits.slice(3);\n  if (digits.startsWith('0')) digits = digits.slice(1);\n\n  const matches = digits.match(/8\\d{8}/g) || [];\n  if (!matches.length) return '';\n  return matches[matches.length - 1].slice(-9);\n})() }}",
+            "Notes": "={{ $json.onceOffRow.Notes }}",
+            "Collection Day": "={{ $json.api.best_alias.collection_week }}",
+            "Month": "={{ $json.onceOffRow.Month }}",
+            "Collection Week": "={{ $json.onceOffRow['Collection Week'] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Full Name",
+              "displayName": "Full Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Column 1",
+              "displayName": "Column 1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Address 1",
+              "displayName": "Address 1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Address 2",
+              "displayName": "Address 2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "City",
+              "displayName": "City",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Province",
+              "displayName": "Province",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Zip",
+              "displayName": "Zip",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Country",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Month",
+              "displayName": "Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Collection Week",
+              "displayName": "Collection Week",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Collection Day",
+              "displayName": "Collection Day",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1616,
+        -256
+      ],
+      "id": "b53494a3-93e8-48eb-9d15-0eebd36be7e7",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst out = [];\n\nconst monthNames = [\n  'January','February','March','April','May','June',\n  'July','August','September','October','November','December'\n];\n\nfunction weekNumberFromLabel(label) {\n  const map = { First: 1, Second: 2, Third: 3, Fourth: 4, Fifth: 5 };\n  const firstWord = String(label || '').split(' ')[0];\n  return map[firstWord] || '';\n}\n\nfor (const item of items) {\n  const j = item.json || {};\n\n  // task may be nested, api always nested\n  const task = j.task || {};      // Pending Actions row\n  const api  = j.api  || {};      // collection-date response\n  const best = api.best_alias || null;\n\n  if (j.alias_action !== 'create_onceoff' || !best) {\n    // If somehow not eligible, just flatten task minimally\n    out.push({ json: { ...task, api, alias_action: j.alias_action } });\n    continue;\n  }\n\n  // --- 1) Derive Month + Collection Week/Day from alias date ---\n  const aliasDateStr = best.next_collection_date; // \"YYYY-MM-DD\"\n  const d = new Date(aliasDateStr + 'T00:00:00Z');\n\n  const monthName = monthNames[d.getUTCMonth()];\n  const collectionWeekNum = weekNumberFromLabel(best.collection_week);\n  const collectionDayLabel = best.collection_week; // e.g. \"Fourth Monday\"\n\n  // --- 2) Build Full Name label for Once-Off sheet ---\n  const prefix =\n    task.action_type === 'deliver_bag'\n      ? 'DELIVER BAG'\n      : 'MISSED COLLECTION';\n\n  const customerName = task.customer_name || '';   // use customer's name\n  const addressStr = task.address || '';\n\n  // \"DELIVER BAG - Molly Carbery\" / \"MISSED COLLECTION - Molly Carbery\"\n  const fullName = `${prefix} - ${customerName}`.trim();\n\n  // --- 3) Build Once-Off row payload ---\n  const onceOffRow = {\n    Email: task.email || '',\n    'Full Name': fullName,\n    'Address 1': addressStr,\n    City: task.province || '',\n    Province: task.province || '',\n    Zip: task.eircode || '',\n    Country: 'Ireland',\n    Phone: task.phone || '',\n    Notes: `Alias route ${best.area_code} from ${api.area_code}`,\n    Month: monthName,\n    'Collection Week': collectionWeekNum, // \ud83d\udc48 1\u20135, matches sheet column\n    'Collection Day': collectionDayLabel  // \"Fourth Monday\"\n  };\n\n  // --- 4) FLATTEN: spread task at top level, keep api + alias metadata ---\n  out.push({\n    json: {\n      ...task,                        // all the original columns (status, name, etc.)\n      api,                            // keep api nested if you still want it\n      alias_action: j.alias_action,\n      alias_onceoff_created: true,\n      alias_area_code: best.area_code,\n      alias_collection_date: aliasDateStr,\n      onceOffRow\n    }\n  });\n}\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        -128
+      ],
+      "id": "6ef2ca46-b90c-4499-9d29-5e81c2edc903",
+      "name": "Build Once Off Row"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA",
+          "mode": "list",
+          "cachedResultName": "GlassBag Support System",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 22198673,
+          "mode": "list",
+          "cachedResultName": "Pending Actions Queue",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit#gid=22198673"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "status",
+              "lookupValue": "in_progress"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        0,
+        0
+      ],
+      "id": "adfc42bc-f908-4ec6-ab10-943d9dd7800d",
+      "name": "Get row(s) in sheet",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw",
+          "mode": "list",
+          "cachedResultName": "N8N - ONCE OFF SHEET",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vusoU6RpCZgk_wrQ-zetP9TQweyhRajs7OB9zu4NTaw/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $json.onceOffRow.Email }}",
+            "Full Name": "={{ $json.onceOffRow['Full Name'] }}",
+            "Address 1": "={{ $json.address }}",
+            "City": "={{ $json.onceOffRow.City }}",
+            "Province": "={{ $json.onceOffRow.Province }}",
+            "Zip": "={{ $json.onceOffRow.Zip }}",
+            "Country": "Ireland",
+            "Phone": "={{ (() => {\n  const DELIVERY_PHONE = '873157744';\n  const actionType = String($json.action_type || '').toLowerCase();\n  const fullName = String((($json.onceOffRow && $json.onceOffRow['Full Name']) || $json['Full Name'] || ($json.body && $json.body.full_name) || '')).toUpperCase();\n  const notes = String(($json.notes || ($json.onceOffRow && $json.onceOffRow.Notes) || ($json.body && $json.body.notes) || '')).toUpperCase();\n  const isDelivery = actionType === 'deliver_bag' || fullName.startsWith('DELIVER') || notes.includes('DELIVER BAG') || notes.includes('NEVER RECEIVED BAG');\n  if (isDelivery) return DELIVERY_PHONE;\n\n  const rawPhone = String((($json.onceOffRow && $json.onceOffRow.Phone) || $json.Phone || ($json.body && $json.body.phone) || ''));\n  let digits = rawPhone.replace(/\\D/g, '');\n  if (digits.startsWith('00')) digits = digits.slice(2);\n  if (digits.startsWith('353')) digits = digits.slice(3);\n  if (digits.startsWith('0')) digits = digits.slice(1);\n\n  const matches = digits.match(/8\\d{8}/g) || [];\n  if (!matches.length) return '';\n  return matches[matches.length - 1].slice(-9);\n})() }}",
+            "Notes": "={{ $json.onceOffRow.Notes }}",
+            "Collection Day": "={{ $json.onceOffRow['Collection Day'] }}",
+            "Month": "={{ $json.onceOffRow.Month }}",
+            "Collection Week": "={{ $json.onceOffRow['Collection Week'] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Full Name",
+              "displayName": "Full Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Column 1",
+              "displayName": "Column 1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Address 1",
+              "displayName": "Address 1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Address 2",
+              "displayName": "Address 2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "City",
+              "displayName": "City",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Province",
+              "displayName": "Province",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Zip",
+              "displayName": "Zip",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Country",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Month",
+              "displayName": "Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Collection Week",
+              "displayName": "Collection Week",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Collection Day",
+              "displayName": "Collection Day",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1616,
+        128
+      ],
+      "id": "a8f704cb-dc46-4bea-b0f1-ae1b042eb76f",
+      "name": "Append row in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Build Standard Once Off Row (no alias) ===\n// Input: { task: {...}, api: {...} }\n// Output: spreads task, adds onceOffRow built from MAIN schedule (not alias)\n\nconst items = $input.all();\nconst out = [];\n\nconst monthNames = [\n  'January','February','March','April','May','June',\n  'July','August','September','October','November','December'\n];\n\nfunction weekNumberFromLabel(label) {\n  const map = { First: 1, Second: 2, Third: 3, Fourth: 4, Fifth: 5 };\n  const firstWord = String(label || '').split(' ')[0];\n  return map[firstWord] || '';\n}\n\nfor (const item of items) {\n  const j = item.json || {};\n  const task = j.task || {};      // Pending Actions row\n  const api  = j.api  || {};      // collection-date response (MAIN schedule fields)\n\n  // MAIN schedule fields expected from your API:\n  // api.next_collection_date (YYYY-MM-DD), api.collection_week (e.g. \"Fourth Monday\"),\n  // api.collection_day (e.g. \"Monday\"), api.area_code, api.days_until_collection, etc.\n\n  const mainDateIso = api.next_collection_date || null; // \"YYYY-MM-DD\"\n  let monthName = '';\n  let collectionWeekNum = '';\n  let collectionDayLabel = api.collection_week || '';   // \"Fourth Monday\"\n\n  if (mainDateIso) {\n    const d = new Date(mainDateIso + 'T00:00:00Z');\n    if (!isNaN(d.getTime())) {\n      monthName = monthNames[d.getUTCMonth()];\n    }\n    collectionWeekNum = weekNumberFromLabel(collectionDayLabel);\n  }\n\n  // NEW: Format Full Name as \"DELIVER BAG - [[CUSTOMER NAME]]\"\n  const customerName = String(task.customer_name || '').trim() || '';\n  const eircode = String(task.eircode || '').trim() || '';\n  const fullName = customerName\n    ? `DELIVER BAG - ${customerName}`\n    : (eircode ? `DELIVER BAG - ${eircode}` : 'DELIVER BAG - UNKNOWN');\n\n  const onceOffRow = {\n    Email: task.email || '',\n    'Full Name': fullName,\n    'Address 1': task.address || '',\n    City: task.province || '',\n    Province: task.province || '',\n    Zip: task.eircode || '',\n    Country: 'Ireland',\n    Phone: task.phone || '',\n    Notes: 'Standard route (no alias)',\n    Month: monthName || '',\n    'Collection Week': collectionWeekNum,        // 1\u20135\n    'Collection Day': collectionDayLabel || ''   // \"Fourth Monday\"\n  };\n\n  out.push({\n    json: {\n      ...task,\n      api,\n      alias_action: 'standard_onceoff',\n      alias_onceoff_created: false,\n      alias_area_code: 'No Alias',\n      alias_collection_date: 'No Alias',\n      onceOffRow\n    }\n  });\n}\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        128
+      ],
+      "id": "19ef42e1-951f-46b5-9566-2097d80b5e30",
+      "name": "Build Standard Once Off Row (no alias)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nfor (const item of $input.all()) {\n  item.json.myNewField = 1;\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        -32
+      ],
+      "id": "91a8461c-b814-4dcf-b2db-aaf8eda1287e",
+      "name": "Ensure Sheet Update"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA",
+          "mode": "list",
+          "cachedResultName": "GlassBag Support System",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 22198673,
+          "mode": "list",
+          "cachedResultName": "Pending Actions Queue",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit#gid=22198673"
+        },
+        "event": "rowUpdate",
+        "options": {
+          "columnsToWatch": [
+            "status"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        0
+      ],
+      "id": "29f3fa07-a0f6-418d-922c-2a1fe3355bea",
+      "name": "Google Sheets Trigger",
+      "credentials": {
+        "googleSheetsTriggerOAuth2Api": {
+          "id": "6eTJiXgdLDCBKhWq",
+          "name": "Google Sheets Trigger account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA",
+          "mode": "list",
+          "cachedResultName": "GlassBag Support System",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 22198673,
+          "mode": "list",
+          "cachedResultName": "Pending Actions Queue",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit#gid=22198673"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "source_message_id": "={{ $json.source_message_id }}",
+            "alias_onceoff_created": "={{ $json.alias_onceoff_created }}",
+            "alias_area_code": "={{ $json.alias_area_code }}",
+            "alias_collection_date": "={{ $json.alias_collection_date }}",
+            "status": "done",
+            "assignee": "ALIAS WORKFLOW",
+            "completed_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [
+            "source_message_id"
+          ],
+          "schema": [
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_message_id",
+              "displayName": "source_message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "action_type",
+              "displayName": "action_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "assignee",
+              "displayName": "assignee",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "address",
+              "displayName": "address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "province",
+              "displayName": "province",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "eircode",
+              "displayName": "eircode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "priority",
+              "displayName": "priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "alias_onceoff_created",
+              "displayName": "alias_onceoff_created",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "alias_area_code",
+              "displayName": "alias_area_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "alias_collection_date",
+              "displayName": "alias_collection_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1616,
+        -32
+      ],
+      "id": "51b03417-84f0-4e9a-9379-c4d30d2694de",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA",
+          "mode": "list",
+          "cachedResultName": "GlassBag Support System",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 22198673,
+          "mode": "list",
+          "cachedResultName": "Pending Actions Queue",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1oZXUNzltB7SErRNGFAp4q2a-I2XHgSrfEFhDIfsp1iA/edit#gid=22198673"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "source_message_id": "={{ $json.source_message_id }}",
+            "alias_onceoff_created": "={{ $json.alias_onceoff_created }}",
+            "alias_area_code": "={{ $json.alias_area_code }}",
+            "alias_collection_date": "={{ $json.alias_collection_date }}",
+            "status": "done",
+            "assignee": "ALIAS WORKFLOW",
+            "completed_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [
+            "source_message_id"
+          ],
+          "schema": [
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_message_id",
+              "displayName": "source_message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "action_type",
+              "displayName": "action_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "assignee",
+              "displayName": "assignee",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "address",
+              "displayName": "address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "province",
+              "displayName": "province",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "eircode",
+              "displayName": "eircode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "priority",
+              "displayName": "priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "alias_onceoff_created",
+              "displayName": "alias_onceoff_created",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "alias_area_code",
+              "displayName": "alias_area_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "alias_collection_date",
+              "displayName": "alias_collection_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1616,
+        320
+      ],
+      "id": "f658f4ca-cae4-4ee1-8a2b-ed843f48d9b5",
+      "name": "Append or update row in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "VMxnAmLOE69buuPK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "removeLabels",
+        "messageId": "={{ $('Build Once Off Row').item.json.source_message_id }}",
+        "labelIds": [
+          "UNREAD"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1904,
+        -256
+      ],
+      "id": "a5529241-6d99-425a-bc61-20619db07570",
+      "name": "Remove label from message",
+      "webhookId": "224f6b7a-7757-446d-9857-169730cd062f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6lB6mgLBMfvG3wjl",
+          "name": "Gmail account: info@glassbag.ie"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "removeLabels",
+        "messageId": "={{ $('Build Once Off Row').item.json.source_message_id }}",
+        "labelIds": [
+          "UNREAD"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1904,
+        -32
+      ],
+      "id": "8d9f4f7c-5479-4754-a39f-6c9803d8b4a7",
+      "name": "Remove label from message1",
+      "webhookId": "224f6b7a-7757-446d-9857-169730cd062f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6lB6mgLBMfvG3wjl",
+          "name": "Gmail account: info@glassbag.ie"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "removeLabels",
+        "messageId": "={{ $('Build Standard Once Off Row (no alias)').item.json.source_message_id }}",
+        "labelIds": [
+          "UNREAD"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1904,
+        208
+      ],
+      "id": "d64e727b-32fc-426c-90f5-c23046e3d26b",
+      "name": "Remove label from message2",
+      "webhookId": "224f6b7a-7757-446d-9857-169730cd062f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "6lB6mgLBMfvG3wjl",
+          "name": "Gmail account: info@glassbag.ie"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Check if Alias Action": {
+      "main": [
+        [
+          {
+            "node": "Alias Action - Skip?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alias Action - Skip?": {
+      "main": [
+        [
+          {
+            "node": "Build Once Off Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Standard Once Off Row (no alias)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wrap Pending Action": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Wrap API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wrap API": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Check if Alias Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Once Off Row": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Wrap Pending Action",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Standard Once Off Row (no alias)": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append or update row in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Ensure Sheet Update",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remove label from message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Ensure Sheet Update",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remove label from message2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append or update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Ensure Sheet Update",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remove label from message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append or update row in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Ensure Sheet Update",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remove label from message2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
+}
